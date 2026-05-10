@@ -50,29 +50,62 @@ def _get(url: str, params: dict, retries: int = 3) -> list | dict:
     return []
 
 
-def collect_wallet_addresses(max_wallets: int = 500) -> set[str]:
-    """Collect unique wallet addresses from the global trades feed."""
+def _collect_from_endpoint(params_list: list[dict]) -> set[str]:
+    """Collect wallet addresses by paginating through multiple parameter sets."""
     wallets: set[str] = set()
-    log.info("Collecting wallet addresses from global trades feed...")
-
-    for offset in range(0, 3000, 500):
-        try:
-            data = _get(f"{DATA_API}/trades", {"limit": 500, "offset": offset})
-            if not isinstance(data, list) or not data:
+    for params in params_list:
+        for offset in range(0, 3001, 500):
+            try:
+                p = {**params, "limit": 500, "offset": offset}
+                data = _get(f"{DATA_API}/trades", p)
+                if not isinstance(data, list) or not data:
+                    break
+                for trade in data:
+                    addr = trade.get("proxyWallet", "")
+                    if addr and addr.startswith("0x"):
+                        wallets.add(addr.lower())
+                if len(data) < 500:
+                    break
+                time.sleep(0.15)
+            except Exception as exc:
+                log.debug(f"Fetch error: {exc}")
                 break
-            for trade in data:
-                addr = trade.get("proxyWallet", "")
-                if addr and addr.startswith("0x"):
-                    wallets.add(addr.lower())
-            log.info(f"  offset={offset}: {len(wallets)} unique wallets so far")
-            if len(wallets) >= max_wallets:
-                break
-            time.sleep(0.2)
-        except Exception as exc:
-            log.warning(f"Global feed fetch error at offset {offset}: {exc}")
-            break
+    return wallets
 
-    log.info(f"Collected {len(wallets)} unique wallet addresses")
+
+def collect_wallet_addresses(max_wallets: int = 500) -> set[str]:
+    """
+    Collect unique wallet addresses from:
+    1. Global trades feed (recent 3000 trades)
+    2. Top events by volume (historical high-activity markets)
+    """
+    wallets: set[str] = set()
+
+    # Source 1: Global trades feed
+    log.info("Collecting from global trades feed...")
+    global_wallets = _collect_from_endpoint([{}])
+    wallets.update(global_wallets)
+    log.info(f"  Global feed: {len(wallets)} unique wallets")
+
+    # Source 2: Top events by volume (these have the most active traders)
+    log.info("Collecting from top events...")
+    try:
+        events_r = _get("https://gamma-api.polymarket.com/events",
+                        {"limit": 100, "order": "volume", "ascending": "false"})
+        if isinstance(events_r, list):
+            event_params = [{"eventSlug": e.get("slug", "")}
+                           for e in events_r if e.get("slug")]
+            event_wallets = _collect_from_endpoint(event_params[:50])
+            new = event_wallets - wallets
+            wallets.update(event_wallets)
+            log.info(f"  Top events: +{len(new)} new wallets (total: {len(wallets)})")
+    except Exception as exc:
+        log.warning(f"Event collection failed: {exc}")
+
+    if len(wallets) > max_wallets:
+        wallets = set(list(wallets)[:max_wallets])
+
+    log.info(f"Total unique wallet addresses collected: {len(wallets)}")
     return wallets
 
 

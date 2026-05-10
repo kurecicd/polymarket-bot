@@ -100,7 +100,7 @@ def trigger_setup(background_tasks: BackgroundTasks):
         try:
             common.load_env()
             _write_progress("fetching", running=True)
-            _run("fetch_historical.py", "--wallets", "300", timeout=43200)
+            _run("fetch_historical.py", "--wallets", "2000", timeout=43200)
 
             rows, wallets = 0, 0
             parquet = common.DATA_DIR / "trades_raw.parquet"
