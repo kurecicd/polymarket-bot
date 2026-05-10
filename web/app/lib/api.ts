@@ -68,6 +68,15 @@ export async function getBotStatus() {
   }>("/api/actions/status");
 }
 
+export async function getSetupStatus() {
+  return apiFetch<{
+    setup_running: boolean;
+    data_ready: boolean;
+    trades_fetched: boolean;
+    whales_selected: boolean;
+  }>("/api/actions/setup-status");
+}
+
 export async function triggerAction(action: string, execute = false) {
   // Always use proxy — this is always called from the browser
   const res = await fetch(`/api/proxy/actions/${action}?execute=${execute}`, {

@@ -3,8 +3,10 @@
 import { useState } from "react";
 import { triggerAction } from "../lib/api";
 
-export default function SetupBanner() {
-  const [state, setState] = useState<"idle" | "loading" | "running" | "error">("idle");
+export default function SetupBanner({ alreadyRunning = false }: { alreadyRunning?: boolean }) {
+  const [state, setState] = useState<"idle" | "loading" | "running" | "error">(
+    alreadyRunning ? "running" : "idle"
+  );
 
   async function runSetup() {
     setState("loading");

@@ -1,4 +1,4 @@
-import { getStats, getPositions, getWhales, getActivity, getConsensusLog, getBotStatus } from "./lib/api";
+import { getStats, getPositions, getWhales, getActivity, getConsensusLog, getBotStatus, getSetupStatus } from "./lib/api";
 import SetupBanner from "./components/SetupBanner";
 import StatsBar from "./components/StatsBar";
 import WhaleTable from "./components/WhaleTable";
@@ -10,13 +10,14 @@ import BotControls from "./components/BotControls";
 export const dynamic = "force-dynamic";
 
 export default async function Dashboard() {
-  const [stats, positions, whales, activity, consensus, status] = await Promise.all([
+  const [stats, positions, whales, activity, consensus, status, setupStatus] = await Promise.all([
     getStats().catch(() => null),
     getPositions().catch(() => ({ open: [], closed: [] })),
     getWhales().catch(() => ({ whales: [], count: 0, updated_at: "" })),
     getActivity(30).catch(() => []),
     getConsensusLog(15).catch(() => []),
     getBotStatus().catch(() => null),
+    getSetupStatus().catch(() => null),
   ]);
 
   return (
@@ -35,7 +36,7 @@ export default async function Dashboard() {
       </div>
 
       {/* Setup banner — shown when no data exists yet */}
-      {!status?.data_ready && <SetupBanner />}
+      {!status?.data_ready && <SetupBanner alreadyRunning={setupStatus?.setup_running ?? false} />}
 
       {/* Stats bar */}
       {stats && <StatsBar stats={stats} />}
