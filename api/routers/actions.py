@@ -67,68 +67,69 @@ def trigger_refresh_whales(background_tasks: BackgroundTasks):
     return {"status": "triggered"}
 
 
-_setup_running = False
-_setup_stage = ""
-_setup_rows_fetched = 0
+SETUP_PROGRESS_PATH = common.RUNTIME_DIR / "setup_progress.json"
+
+
+def _write_progress(stage: str, running: bool, rows: int = 0, wallets: int = 0) -> None:
+    common.RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
+    common.write_json(SETUP_PROGRESS_PATH, {
+        "running": running,
+        "stage": stage,
+        "rows_downloaded": rows,
+        "wallets_scanned": wallets,
+        "updated_at": common.iso_now(),
+    })
+
+
+def _read_progress() -> dict:
+    if SETUP_PROGRESS_PATH.exists():
+        try:
+            return common.read_json(SETUP_PROGRESS_PATH)
+        except Exception:
+            pass
+    return {"running": False, "stage": "not_started", "rows_downloaded": 0, "wallets_scanned": 0}
 
 
 @router.post("/setup")
 def trigger_setup(background_tasks: BackgroundTasks):
-    """
-    Run the full data pipeline on Railway:
-      1. fetch_historical.py  (downloads all trades from subgraph — takes hours)
-      2. rank_wallets.py      (compute win rates)
-      3. select_whales.py     (pick top 20)
-    Runs in background — check /api/actions/status for data_ready flag.
-    """
-    global _setup_running
-    if _setup_running:
+    progress = _read_progress()
+    if progress.get("running"):
         return {"status": "already_running", "message": "Setup is already in progress"}
 
     def _full_setup():
-        global _setup_running, _setup_stage, _setup_rows_fetched
-        _setup_running = True
         try:
             common.load_env()
-            _setup_stage = "fetching"
+            _write_progress("fetching", running=True)
             _run("fetch_historical.py", timeout=43200)
-            # Count rows fetched
+
+            rows, wallets = 0, 0
             parquet = common.DATA_DIR / "trades_raw.parquet"
             if parquet.exists():
                 import pandas as pd
-                _setup_rows_fetched = len(pd.read_parquet(parquet))
-            _setup_stage = "ranking"
+                df = pd.read_parquet(parquet, columns=["maker_address"])
+                rows = len(df)
+                wallets = df["maker_address"].nunique()
+
+            _write_progress("ranking", running=True, rows=rows, wallets=wallets)
             _run("rank_wallets.py", timeout=3600)
-            _setup_stage = "selecting"
+
+            _write_progress("selecting", running=True, rows=rows, wallets=wallets)
             _run("select_whales.py", timeout=60)
-            _setup_stage = "done"
-        except Exception:
-            _setup_stage = "failed"
-        finally:
-            _setup_running = False
+
+            _write_progress("done", running=False, rows=rows, wallets=wallets)
+        except Exception as exc:
+            _write_progress("failed", running=False)
 
     background_tasks.add_task(_full_setup)
-    return {
-        "status": "triggered",
-        "message": "Full setup started. fetch_historical.py will run for several hours. Check /api/actions/status for data_ready.",
-    }
+    _write_progress("fetching", running=True)
+    return {"status": "triggered"}
 
 
 @router.get("/setup-status")
 def get_setup_status():
-    trades_file = common.DATA_DIR / "trades_raw.parquet"
+    progress = _read_progress()
     rankings_file = common.DATA_DIR / "wallet_rankings.parquet"
-
-    rows = 0
-    wallets = 0
-    if trades_file.exists():
-        try:
-            import pandas as pd
-            df = pd.read_parquet(trades_file, columns=["maker_address"])
-            rows = len(df)
-            wallets = df["maker_address"].nunique()
-        except Exception:
-            pass
+    trades_file = common.DATA_DIR / "trades_raw.parquet"
 
     whale_count = 0
     if common.WHALE_LIST_PATH.exists():
@@ -137,14 +138,18 @@ def get_setup_status():
         except Exception:
             pass
 
+    stage = progress.get("stage", "not_started")
+    if rankings_file.exists() and not progress.get("running"):
+        stage = "done"
+
     return {
-        "setup_running": _setup_running,
-        "stage": _setup_stage or ("done" if rankings_file.exists() else "not_started"),
+        "setup_running": progress.get("running", False),
+        "stage": stage,
         "data_ready": rankings_file.exists(),
         "trades_fetched": trades_file.exists(),
         "whales_selected": common.WHALE_LIST_PATH.exists(),
-        "rows_downloaded": _setup_rows_fetched or rows,
-        "wallets_scanned": wallets,
+        "rows_downloaded": progress.get("rows_downloaded", 0),
+        "wallets_scanned": progress.get("wallets_scanned", 0),
         "whale_count": whale_count,
     }
 
