@@ -1,11 +1,17 @@
 #!/usr/bin/env python3
 """
-Fetches trade history using the authenticated Polymarket CLOB API.
-Uses py-clob-client SDK directly for proper request signing.
+Fetches historical trade data from Polymarket's public data API.
+No authentication required.
+
+Strategy:
+  1. Pull global trades feed (3000 recent trades) → collect ~1000 unique wallet addresses
+  2. For each wallet, fetch their full trade history (up to 3500 trades per wallet)
+  3. Save all trades to data/trades_raw.parquet
+  4. rank_wallets.py then computes win rates and selects top performers
 
 Run:
-    python fetch_historical.py
-    python fetch_historical.py --markets 50
+    python fetch_historical.py              # default: top 200 wallets
+    python fetch_historical.py --wallets 500
 """
 import argparse
 import logging
@@ -25,87 +31,75 @@ logging.basicConfig(
 )
 log = logging.getLogger("fetch_historical")
 
-CLOB_BASE = "https://clob.polymarket.com"
-GAMMA_BASE = "https://gamma-api.polymarket.com"
+DATA_API = "https://data-api.polymarket.com"
 OUTPUT_PATH = common.DATA_DIR / "trades_raw.parquet"
+SESSION = requests.Session()
+SESSION.headers["User-Agent"] = "polymarket-whale-bot/1.0"
 
 
-def _build_clob_client():
-    common.load_env()
-    key = os.getenv("POLYMARKET_PRIVATE_KEY", "").strip()
-    if not common.has_real_value(key):
-        raise RuntimeError("POLYMARKET_PRIVATE_KEY not set")
-
-    from py_clob_client.client import ClobClient
-    from py_clob_client.clob_types import ApiCreds
-
-    client = ClobClient(host=CLOB_BASE, chain_id=137, key=key)
-
-    api_key = os.getenv("POLYMARKET_API_KEY", "").strip()
-    if common.has_real_value(api_key):
-        client.set_api_creds(ApiCreds(
-            api_key=api_key,
-            api_secret=os.getenv("POLYMARKET_API_SECRET", ""),
-            api_passphrase=os.getenv("POLYMARKET_API_PASSPHRASE", ""),
-        ))
-    else:
-        creds = client.derive_api_key()
-        client.set_api_creds(ApiCreds(
-            api_key=creds.api_key,
-            api_secret=creds.api_secret,
-            api_passphrase=creds.api_passphrase,
-        ))
-        log.info(f"Derived API key: {creds.api_key[:8]}...")
-
-    log.info(f"Authenticated as {client.get_address()}")
-    return client
-
-
-def _fetch_top_markets(limit: int = 100) -> list[dict]:
-    try:
-        resp = requests.get(
-            f"{GAMMA_BASE}/markets",
-            params={"limit": limit, "order": "volume", "ascending": "false"},
-            timeout=30,
-        )
-        resp.raise_for_status()
-        markets = resp.json() or []
-        log.info(f"Fetched {len(markets)} markets")
-        return markets
-    except Exception as exc:
-        log.error(f"Failed to fetch markets: {exc}")
-        return []
-
-
-def _fetch_trades_for_market(client, condition_id: str) -> list[dict]:
-    """Use py-clob-client SDK to fetch trades for a market."""
-    trades = []
-    try:
-        from py_clob_client.clob_types import TradeParams
-        params = TradeParams(market=condition_id)
-        result = client.get_trades(params)
-        if isinstance(result, list):
-            trades = result
-        elif isinstance(result, dict):
-            trades = result.get("data", [])
-    except Exception as exc:
-        log.debug(f"SDK fetch failed for {condition_id[:12]}: {exc}")
-        # Fallback: direct REST with proper signing via client's session
+def _get(url: str, params: dict, retries: int = 3) -> list | dict:
+    for attempt in range(retries):
         try:
-            resp = requests.get(
-                f"{CLOB_BASE}/trades",
-                params={"market": condition_id, "limit": 500},
-                timeout=20,
-            )
-            if resp.status_code == 200:
-                data = resp.json()
-                trades = data.get("data", []) if isinstance(data, dict) else (data or [])
-        except Exception:
-            pass
-    return trades
+            resp = SESSION.get(url, params=params, timeout=20)
+            resp.raise_for_status()
+            return resp.json()
+        except Exception as exc:
+            if attempt == retries - 1:
+                raise
+            time.sleep(2 ** attempt)
+    return []
 
 
-def _parse_trade(trade: dict, condition_id: str, question: str) -> dict | None:
+def collect_wallet_addresses(max_wallets: int = 500) -> set[str]:
+    """Collect unique wallet addresses from the global trades feed."""
+    wallets: set[str] = set()
+    log.info("Collecting wallet addresses from global trades feed...")
+
+    for offset in range(0, 3000, 500):
+        try:
+            data = _get(f"{DATA_API}/trades", {"limit": 500, "offset": offset})
+            if not isinstance(data, list) or not data:
+                break
+            for trade in data:
+                addr = trade.get("proxyWallet", "")
+                if addr and addr.startswith("0x"):
+                    wallets.add(addr.lower())
+            log.info(f"  offset={offset}: {len(wallets)} unique wallets so far")
+            if len(wallets) >= max_wallets:
+                break
+            time.sleep(0.2)
+        except Exception as exc:
+            log.warning(f"Global feed fetch error at offset {offset}: {exc}")
+            break
+
+    log.info(f"Collected {len(wallets)} unique wallet addresses")
+    return wallets
+
+
+def fetch_wallet_trades(address: str) -> list[dict]:
+    """Fetch full trade history for a single wallet."""
+    all_trades = []
+    for offset in range(0, 3500, 500):
+        try:
+            data = _get(f"{DATA_API}/trades", {
+                "user": address,
+                "limit": 500,
+                "offset": offset,
+            })
+            if not isinstance(data, list) or not data:
+                break
+            all_trades.extend(data)
+            if len(data) < 500:
+                break
+            time.sleep(0.1)
+        except Exception as exc:
+            log.debug(f"Error fetching trades for {address[:12]}: {exc}")
+            break
+    return all_trades
+
+
+def parse_trade(trade: dict) -> dict | None:
+    """Convert API trade record to our standard format."""
     try:
         side = (trade.get("side") or "").upper()
         if side not in ("BUY", "SELL"):
@@ -114,36 +108,37 @@ def _parse_trade(trade: dict, condition_id: str, question: str) -> dict | None:
         size = float(trade.get("size") or 0)
         if price <= 0 or size <= 0:
             return None
-        maker = (trade.get("maker_address") or trade.get("owner") or "").lower()
+        maker = (trade.get("proxyWallet") or "").lower()
         if not maker or not maker.startswith("0x"):
             return None
+
         return {
-            "trade_id": str(trade.get("id") or trade.get("trade_id") or ""),
+            "trade_id": str(trade.get("transactionHash") or "") + str(trade.get("asset") or ""),
             "timestamp": int(trade.get("timestamp") or 0),
             "block_number": 0,
             "maker_address": maker,
-            "taker_address": (trade.get("taker_address") or "").lower(),
-            "token_id": str(trade.get("asset_id") or ""),
-            "condition_id": condition_id,
-            "market_question": question[:120],
+            "taker_address": "",
+            "token_id": str(trade.get("asset") or ""),
+            "condition_id": str(trade.get("conditionId") or ""),
+            "market_question": str(trade.get("title") or "")[:120],
             "end_timestamp": 0,
             "side": side,
             "price": price,
             "size_shares": size,
             "usdc_amount": round(price * size, 6),
+            "outcome": str(trade.get("outcome") or ""),
+            "outcome_index": int(trade.get("outcomeIndex") or 0),
         }
     except Exception:
         return None
 
 
-def main(num_markets: int = 100) -> None:
+def main(max_wallets: int = 200) -> None:
     common.load_env()
     run_id = common.new_run_id("fetch-historical")
-    common.log_event("fetch_historical", run_id, "start", num_markets=num_markets)
+    common.log_event("fetch_historical", run_id, "start", max_wallets=max_wallets)
 
-    client = _build_clob_client()
-
-    # Load existing
+    # Load existing data
     existing_ids: set[str] = set()
     existing_df = pd.DataFrame()
     if OUTPUT_PATH.exists():
@@ -151,66 +146,54 @@ def main(num_markets: int = 100) -> None:
         existing_ids = set(existing_df["trade_id"].dropna().tolist())
         log.info(f"Existing: {len(existing_df):,} trades")
 
-    markets = _fetch_top_markets(num_markets)
-    if not markets:
-        log.error("No markets fetched")
+    # Step 1: collect wallet addresses
+    wallets = collect_wallet_addresses(max_wallets)
+
+    if not wallets:
+        log.error("Could not collect any wallet addresses")
         sys.exit(1)
 
+    # Step 2: fetch per-wallet trade history
     all_records = []
+    total = len(wallets)
 
-    for i, market in enumerate(markets, 1):
-        condition_id = market.get("conditionId") or market.get("condition_id") or ""
-        question = market.get("question") or market.get("title") or ""
-        if not condition_id:
-            continue
+    for i, addr in enumerate(sorted(wallets), 1):
+        if i % 20 == 0:
+            log.info(f"[{i}/{total}] {len(all_records):,} trades collected so far")
 
-        log.info(f"[{i}/{len(markets)}] {question[:55]}...")
-        trades = _fetch_trades_for_market(client, condition_id)
-
+        trades = fetch_wallet_trades(addr)
         new = 0
         for t in trades:
-            record = _parse_trade(t, condition_id, question)
+            record = parse_trade(t)
             if record and record["trade_id"] and record["trade_id"] not in existing_ids:
                 all_records.append(record)
                 existing_ids.add(record["trade_id"])
                 new += 1
 
-        if new:
-            log.info(f"  → {new} trades | total: {len(all_records):,}")
-        time.sleep(0.15)
+        if new > 0:
+            log.debug(f"  {addr[:12]}...: {new} new trades")
+        time.sleep(0.05)
+
+    log.info(f"Fetched {len(all_records):,} new trades from {total} wallets")
 
     if not all_records and existing_df.empty:
-        log.error("No trades fetched — CLOB API may not support market-level trade queries without special access")
-        log.info("Falling back to seed whale list...")
-        # Run seed_whales.py as fallback
-        import subprocess
-        result = subprocess.run([sys.executable, "seed_whales.py"], cwd=str(common.ROOT))
-        if result.returncode == 0:
-            log.info("Seed whales created — bot can start monitoring immediately")
-            # Create empty parquet so setup considers trades_fetched
-            empty = pd.DataFrame(columns=[
-                "trade_id", "timestamp", "block_number", "maker_address",
-                "taker_address", "token_id", "condition_id", "market_question",
-                "end_timestamp", "side", "price", "size_shares", "usdc_amount",
-            ])
-            common.DATA_DIR.mkdir(parents=True, exist_ok=True)
-            empty.to_parquet(OUTPUT_PATH, engine="pyarrow", index=False)
-            sys.exit(0)
+        log.error("No trades fetched")
         sys.exit(1)
 
+    # Save
     new_df = pd.DataFrame(all_records) if all_records else pd.DataFrame()
     combined = pd.concat([existing_df, new_df], ignore_index=True) if not existing_df.empty else new_df
     combined = combined.drop_duplicates(subset=["trade_id"]).sort_values("timestamp").reset_index(drop=True)
 
     common.DATA_DIR.mkdir(parents=True, exist_ok=True)
     combined.to_parquet(OUTPUT_PATH, engine="pyarrow", index=False, compression="snappy")
-    log.info(f"Saved {len(combined):,} trades to {OUTPUT_PATH}")
+    log.info(f"Saved {len(combined):,} total trades to {OUTPUT_PATH}")
     common.log_event("fetch_historical", run_id, "complete",
                      new_trades=len(all_records), total=len(combined))
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--markets", type=int, default=100)
+    parser.add_argument("--wallets", type=int, default=200, help="Max wallets to scan")
     args = parser.parse_args()
-    main(num_markets=args.markets)
+    main(max_wallets=args.wallets)
