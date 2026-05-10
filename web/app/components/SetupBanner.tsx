@@ -47,9 +47,11 @@ export default function SetupBanner({ alreadyRunning = false, stage: initialStag
   const [error, setError] = useState("");
   const [elapsed, setElapsed] = useState(0);
 
+  const RAILWAY_URL = "https://polymarket-bot-production-ae2d.up.railway.app";
+
   const pollStatus = useCallback(async () => {
     try {
-      const res = await fetch("/api/proxy/actions/setup-status");
+      const res = await fetch(`${RAILWAY_URL}/api/actions/setup-status`);
       const data: LiveStatus = await res.json();
       setStatus(data);
       if (data.data_ready) {
@@ -81,7 +83,7 @@ export default function SetupBanner({ alreadyRunning = false, stage: initialStag
     setStarting(true);
     setError("");
     try {
-      const res = await triggerAction("setup");
+      const res = await fetch(`${RAILWAY_URL}/api/actions/setup`, { method: "POST" }).then(r => r.json());
       if (res.status === "triggered" || res.status === "already_running") {
         setRunning(true);
         setElapsed(0);

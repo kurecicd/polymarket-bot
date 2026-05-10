@@ -8,3 +8,4 @@ venv/
 *.parquet
 *.egg-info/
 .DS_Store
+.vercel
