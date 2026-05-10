@@ -9,8 +9,10 @@ from typing import Any
 ROOT = Path(__file__).resolve().parent
 LOCAL_ENV = ROOT / ".env"
 
-DATA_DIR = ROOT / "data"
-RUNTIME_DIR = ROOT / "runtime"
+# On Railway, persistent volume is mounted at /data
+_PERSISTENT = Path("/data") if Path("/data").exists() and Path("/data").is_dir() else ROOT
+DATA_DIR = _PERSISTENT / "data"
+RUNTIME_DIR = _PERSISTENT / "runtime"
 
 EXECUTION_STATE_PATH = RUNTIME_DIR / "execution_state.json"
 MONITOR_STATE_PATH = RUNTIME_DIR / "monitor_state.json"
