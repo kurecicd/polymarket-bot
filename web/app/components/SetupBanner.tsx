@@ -3,7 +3,23 @@
 import { useState } from "react";
 import { triggerAction } from "../lib/api";
 
-export default function SetupBanner({ alreadyRunning = false }: { alreadyRunning?: boolean }) {
+interface Props {
+  alreadyRunning?: boolean;
+  stage?: string;
+  rowsDownloaded?: number;
+  walletsScanned?: number;
+}
+
+const STAGE_LABELS: Record<string, string> = {
+  fetching: "Downloading trade history from Polymarket subgraph…",
+  ranking: "Ranking wallets by win rate and profit…",
+  selecting: "Selecting top whale wallets…",
+  done: "Done! Refresh the page.",
+  failed: "Setup failed — check Railway logs.",
+  not_started: "Not started yet.",
+};
+
+export default function SetupBanner({ alreadyRunning = false, stage = "", rowsDownloaded = 0, walletsScanned = 0 }: Props) {
   const [state, setState] = useState<"idle" | "loading" | "running" | "error">(
     alreadyRunning ? "running" : "idle"
   );
@@ -47,17 +63,14 @@ export default function SetupBanner({ alreadyRunning = false }: { alreadyRunning
       {state === "running" && (
         <div>
           <p className="text-green-400 text-sm font-bold">✓ Setup is running on Railway</p>
-          <p className="text-green-700 text-xs mt-1">
-            Check progress at{" "}
-            <a
-              href="https://polymarket-bot-production-ae2d.up.railway.app/api/actions/setup-status"
-              target="_blank"
-              className="underline"
-            >
-              /api/actions/setup-status
-            </a>
-            . Refresh this page in a few hours.
-          </p>
+          <p className="text-green-400 text-xs mt-1">{STAGE_LABELS[stage] ?? "Running…"}</p>
+          {rowsDownloaded > 0 && (
+            <p className="text-green-700 text-xs mt-1">
+              {rowsDownloaded.toLocaleString()} trades downloaded &nbsp;·&nbsp;
+              {walletsScanned.toLocaleString()} wallets scanned
+            </p>
+          )}
+          <p className="text-green-800 text-xs mt-2">Refresh this page in a few hours to see results.</p>
         </div>
       )}
 

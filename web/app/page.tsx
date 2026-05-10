@@ -36,7 +36,14 @@ export default async function Dashboard() {
       </div>
 
       {/* Setup banner — shown when no data exists yet */}
-      {!status?.data_ready && <SetupBanner alreadyRunning={setupStatus?.setup_running ?? false} />}
+      {!status?.data_ready && (
+        <SetupBanner
+          alreadyRunning={setupStatus?.setup_running ?? false}
+          stage={setupStatus?.stage ?? "not_started"}
+          rowsDownloaded={setupStatus?.rows_downloaded ?? 0}
+          walletsScanned={setupStatus?.wallets_scanned ?? 0}
+        />
+      )}
 
       {/* Stats bar */}
       {stats && <StatsBar stats={stats} />}

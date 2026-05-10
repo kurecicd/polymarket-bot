@@ -68,6 +68,8 @@ def trigger_refresh_whales(background_tasks: BackgroundTasks):
 
 
 _setup_running = False
+_setup_stage = ""
+_setup_rows_fetched = 0
 
 
 @router.post("/setup")
@@ -84,13 +86,24 @@ def trigger_setup(background_tasks: BackgroundTasks):
         return {"status": "already_running", "message": "Setup is already in progress"}
 
     def _full_setup():
-        global _setup_running
+        global _setup_running, _setup_stage, _setup_rows_fetched
         _setup_running = True
         try:
             common.load_env()
-            _run("fetch_historical.py", timeout=43200)  # 12h max
+            _setup_stage = "fetching"
+            _run("fetch_historical.py", timeout=43200)
+            # Count rows fetched
+            parquet = common.DATA_DIR / "trades_raw.parquet"
+            if parquet.exists():
+                import pandas as pd
+                _setup_rows_fetched = len(pd.read_parquet(parquet))
+            _setup_stage = "ranking"
             _run("rank_wallets.py", timeout=3600)
+            _setup_stage = "selecting"
             _run("select_whales.py", timeout=60)
+            _setup_stage = "done"
+        except Exception:
+            _setup_stage = "failed"
         finally:
             _setup_running = False
 
@@ -103,11 +116,36 @@ def trigger_setup(background_tasks: BackgroundTasks):
 
 @router.get("/setup-status")
 def get_setup_status():
+    trades_file = common.DATA_DIR / "trades_raw.parquet"
+    rankings_file = common.DATA_DIR / "wallet_rankings.parquet"
+
+    rows = 0
+    wallets = 0
+    if trades_file.exists():
+        try:
+            import pandas as pd
+            df = pd.read_parquet(trades_file, columns=["maker_address"])
+            rows = len(df)
+            wallets = df["maker_address"].nunique()
+        except Exception:
+            pass
+
+    whale_count = 0
+    if common.WHALE_LIST_PATH.exists():
+        try:
+            whale_count = len(common.read_json(common.WHALE_LIST_PATH).get("whales", []))
+        except Exception:
+            pass
+
     return {
         "setup_running": _setup_running,
-        "data_ready": (common.DATA_DIR / "wallet_rankings.parquet").exists(),
-        "trades_fetched": (common.DATA_DIR / "trades_raw.parquet").exists(),
+        "stage": _setup_stage or ("done" if rankings_file.exists() else "not_started"),
+        "data_ready": rankings_file.exists(),
+        "trades_fetched": trades_file.exists(),
         "whales_selected": common.WHALE_LIST_PATH.exists(),
+        "rows_downloaded": _setup_rows_fetched or rows,
+        "wallets_scanned": wallets,
+        "whale_count": whale_count,
     }
 
 

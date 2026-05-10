@@ -71,9 +71,13 @@ export async function getBotStatus() {
 export async function getSetupStatus() {
   return apiFetch<{
     setup_running: boolean;
+    stage: string;
     data_ready: boolean;
     trades_fetched: boolean;
     whales_selected: boolean;
+    rows_downloaded: number;
+    wallets_scanned: number;
+    whale_count: number;
   }>("/api/actions/setup-status");
 }
 
