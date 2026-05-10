@@ -1,12 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { triggerAction } from "../lib/api";
 
 export default function BotControls() {
   const [loading, setLoading] = useState<string | null>(null);
   const [msg, setMsg] = useState("");
   const [live, setLive] = useState(false);
+
+  // Load persisted execution mode on mount
+  useEffect(() => {
+    fetch("https://polymarket-bot-production-ae2d.up.railway.app/api/actions/status")
+      .then(r => r.json())
+      .then(d => setLive(d.execution_mode === "execute"))
+      .catch(() => {});
+  }, []);
 
   async function trigger(action: string, execute = false) {
     setLoading(action);
@@ -22,14 +30,21 @@ export default function BotControls() {
     }
   }
 
-  function toggleLive() {
-    if (!live) {
+  async function toggleLive() {
+    const next = !live;
+    if (next) {
       const ok = window.confirm(
-        "Switch to LIVE mode?\n\nThe bot will place real orders with your USDC.\n\nMake sure you have funds in your Polymarket wallet."
+        "Switch to LIVE mode?\n\nThe bot will automatically place real orders every 60 seconds.\n\nMake sure you have USDC in your Polymarket wallet."
       );
       if (!ok) return;
     }
-    setLive(!live);
+    try {
+      const mode = next ? "execute" : "dry_run";
+      await fetch(`https://polymarket-bot-production-ae2d.up.railway.app/api/mode/${mode}`, { method: "POST" });
+      setLive(next);
+    } catch {
+      alert("Failed to switch mode — is Railway up?");
+    }
   }
 
   return (
