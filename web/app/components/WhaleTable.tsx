@@ -11,20 +11,22 @@ export default function WhaleTable({ whales }: { whales: Whale[] }) {
           <thead>
             <tr className="text-green-700">
               <th className="text-left pb-1">WALLET</th>
-              <th className="text-right pb-1">WIN%</th>
+              <th className="text-right pb-1">ROI</th>
               <th className="text-right pb-1">PROFIT</th>
             </tr>
           </thead>
           <tbody>
             {whales.slice(0, 20).map((w) => {
-              const winColor = w.win_rate >= 0.65 ? "text-green-300" : w.win_rate >= 0.55 ? "text-green-400" : "text-yellow-400";
+              const roi = w.roi_pct ?? 0;
+              const roiColor = roi >= 100 ? "text-green-300" : roi >= 20 ? "text-green-400" : "text-yellow-400";
+              const roiStr = roi >= 1000 ? `${(roi/1000).toFixed(1)}kx` : `${roi.toFixed(0)}%`;
               return (
                 <tr key={w.address} className="border-t border-green-950">
                   <td className="py-0.5 text-green-600">
                     {w.address.slice(0, 6)}…{w.address.slice(-4)}
                   </td>
-                  <td className={`text-right ${winColor}`}>
-                    {(w.win_rate * 100).toFixed(0)}%
+                  <td className={`text-right ${roiColor}`}>
+                    {roiStr}
                   </td>
                   <td className="text-right text-green-300">
                     ${w.total_profit_usdc.toLocaleString(undefined, { maximumFractionDigits: 0 })}

@@ -112,6 +112,7 @@ export interface Whale {
   avg_position_size_usdc: number;
   total_trades: number;
   roi_pct: number;
+  volume_30d_usdc?: number;
 }
 
 export interface ActivityEvent {
