@@ -9,12 +9,10 @@ function apiBase() {
   return "";
 }
 
-async function apiFetch<T>(path: string): Promise<T> {
+async function apiFetch<T>(path: string, noCache = false): Promise<T> {
   const base = apiBase();
-  // Server: /api/stats → https://railway.app/api/stats
-  // Browser: /api/stats → /api/proxy/stats
   const url = base ? `${base}${path}` : path.replace(/^\/api\//, "/api/proxy/");
-  const res = await fetch(url, { next: { revalidate: 5 } });
+  const res = await fetch(url, noCache ? { cache: "no-store" } : { next: { revalidate: 5 } });
   if (!res.ok) throw new Error(`API error ${res.status}: ${path}`);
   return res.json();
 }
@@ -78,7 +76,7 @@ export async function getSetupStatus() {
     rows_downloaded: number;
     wallets_scanned: number;
     whale_count: number;
-  }>("/api/actions/setup-status");
+  }>("/api/actions/setup-status", true); // no-cache — always fresh
 }
 
 export async function triggerAction(action: string, execute = false) {
