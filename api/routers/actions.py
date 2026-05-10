@@ -110,15 +110,24 @@ def trigger_setup(background_tasks: BackgroundTasks):
                 rows = len(df)
                 wallets = df["maker_address"].nunique()
 
+            # Abort if no trades were fetched
+            parquet = common.DATA_DIR / "trades_raw.parquet"
+            if not parquet.exists():
+                _write_progress("failed_no_trades", running=False)
+                return
+
             _write_progress("ranking", running=True, rows=rows, wallets=wallets)
-            _run("rank_wallets.py", timeout=3600)
+            result = _run("rank_wallets.py", timeout=3600)
+            if not result["success"]:
+                _write_progress("failed_ranking", running=False)
+                return
 
             _write_progress("selecting", running=True, rows=rows, wallets=wallets)
             _run("select_whales.py", timeout=60)
 
             _write_progress("done", running=False, rows=rows, wallets=wallets)
         except Exception as exc:
-            _write_progress("failed", running=False)
+            _write_progress(f"failed: {str(exc)[:80]}", running=False)
 
     background_tasks.add_task(_full_setup)
     _write_progress("fetching", running=True)
@@ -152,6 +161,30 @@ def get_setup_status():
         "wallets_scanned": progress.get("wallets_scanned", 0),
         "whale_count": whale_count,
     }
+
+
+@router.get("/test-auth")
+def test_auth():
+    """Test if POLYMARKET_PRIVATE_KEY is valid and can auth with CLOB API."""
+    import os
+    common.load_env()
+    key = os.getenv("POLYMARKET_PRIVATE_KEY", "").strip()
+    if not key:
+        return {"ok": False, "error": "POLYMARKET_PRIVATE_KEY not set"}
+    key_preview = f"{key[:6]}...{key[-4:]}" if len(key) > 10 else "too_short"
+    try:
+        from py_clob_client.client import ClobClient
+        client = ClobClient(host="https://clob.polymarket.com", chain_id=137, key=key)
+        address = client.get_address()
+        creds = client.derive_api_key()
+        return {
+            "ok": True,
+            "address": address,
+            "api_key_preview": f"{creds.api_key[:8]}...",
+            "key_preview": key_preview,
+        }
+    except Exception as exc:
+        return {"ok": False, "error": str(exc), "key_preview": key_preview}
 
 
 @router.get("/status")
