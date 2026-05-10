@@ -174,8 +174,8 @@ def get_setup_status():
     if rankings_file.exists() and not progress.get("running"):
         stage = "done"
 
-    # data_ready = either rankings parquet exists OR whale_list.json has whales (seed mode)
-    whale_list_ready = whale_count > 0
+    # data_ready = rankings parquet exists AND whale list has real data (>3 whales = not just seeds)
+    whale_list_ready = whale_count >= 5
     return {
         "setup_running": progress.get("running", False),
         "stage": stage,
