@@ -1,4 +1,5 @@
 import { getStats, getPositions, getWhales, getActivity, getConsensusLog, getBotStatus } from "./lib/api";
+import SetupBanner from "./components/SetupBanner";
 import StatsBar from "./components/StatsBar";
 import WhaleTable from "./components/WhaleTable";
 import PositionsTable from "./components/PositionsTable";
@@ -32,6 +33,9 @@ export default async function Dashboard() {
         </div>
         <BotControls />
       </div>
+
+      {/* Setup banner — shown when no data exists yet */}
+      {!status?.data_ready && <SetupBanner />}
 
       {/* Stats bar */}
       {stats && <StatsBar stats={stats} />}
