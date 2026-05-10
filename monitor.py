@@ -8,6 +8,9 @@ Run (dry-run — no orders placed):
 Run (live — places real orders):
     python monitor.py --execute
 
+Run (live without AI consensus check):
+    python monitor.py --execute --no-consensus
+
 Designed to be invoked every 60 seconds via launchd/cron.
 """
 import argparse
@@ -17,7 +20,10 @@ import sys
 from datetime import datetime, timezone
 
 import common
+from consensus import run_consensus
 from polymarket_client import PolymarketClient
+
+USE_CONSENSUS = True  # overridden by --no-consensus flag
 
 MAX_TRADES_PER_DAY = int(os.getenv("POLYMARKET_MAX_TRADES_PER_DAY", "10"))
 MIN_LIQUIDITY = float(os.getenv("POLYMARKET_MIN_LIQUIDITY", "10000"))
@@ -262,6 +268,18 @@ def run(execute: bool = False) -> None:
             signal = _is_tradeable(trade, client, execution_state)
             if signal:
                 signals_found += 1
+
+                # Run 3-agent AI consensus before placing any trade
+                if USE_CONSENSUS and common.has_real_value(os.getenv("ANTHROPIC_API_KEY", "")):
+                    try:
+                        result = run_consensus(signal, whale)
+                        log.info(f"Consensus: {result.summary}")
+                        if not result.approved:
+                            log.info(f"Consensus REJECTED — skipping trade")
+                            continue
+                    except Exception as exc:
+                        log.warning(f"Consensus check failed ({exc}) — proceeding without it")
+
                 _execute_copy_trade(client, signal, whale, execution_state, execute)
                 trades_placed += 1
 
@@ -278,7 +296,11 @@ def run(execute: bool = False) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--execute", action="store_true", help="Place real orders. Default: dry-run.")
+    parser.add_argument("--no-consensus", action="store_true", help="Skip AI consensus check.")
     args = parser.parse_args()
+    if args.no_consensus:
+        global USE_CONSENSUS
+        USE_CONSENSUS = False
     try:
         run(execute=args.execute)
     except Exception as exc:
