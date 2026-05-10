@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { triggerAction } from "../lib/api";
 
 interface Props {
   alreadyRunning?: boolean;
