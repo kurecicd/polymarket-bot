@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { triggerAction } from "../lib/api";
 
 interface Props {
@@ -11,77 +11,168 @@ interface Props {
 }
 
 const STAGE_LABELS: Record<string, string> = {
-  fetching: "Downloading trade history from Polymarket subgraph…",
-  ranking: "Ranking wallets by win rate and profit…",
-  selecting: "Selecting top whale wallets…",
-  done: "Done! Refresh the page.",
-  failed: "Setup failed — check Railway logs.",
-  not_started: "Not started yet.",
+  fetching:       "Fetching wallet rankings from Dune blockchain data…",
+  ranking:        "Ranking wallets by win rate and profit…",
+  selecting:      "Selecting top whale wallets…",
+  done:           "✓ Done! Page will refresh automatically.",
+  failed_no_trades: "⚠ Failed — no trade data fetched. Check Railway logs.",
+  failed_ranking: "⚠ Failed at ranking step. Check Railway logs.",
+  not_started:    "Not started yet.",
 };
 
-export default function SetupBanner({ alreadyRunning = false, stage = "", rowsDownloaded = 0, walletsScanned = 0 }: Props) {
-  const [state, setState] = useState<"idle" | "loading" | "running" | "error">(
-    alreadyRunning ? "running" : "idle"
-  );
+interface LiveStatus {
+  setup_running: boolean;
+  stage: string;
+  data_ready: boolean;
+  rows_downloaded: number;
+  wallets_scanned: number;
+  whale_count: number;
+  trades_fetched: boolean;
+  whales_selected: boolean;
+}
 
-  async function runSetup() {
-    setState("loading");
+export default function SetupBanner({ alreadyRunning = false, stage: initialStage = "", rowsDownloaded: initRows = 0, walletsScanned: initWallets = 0 }: Props) {
+  const [running, setRunning] = useState(alreadyRunning);
+  const [status, setStatus] = useState<LiveStatus>({
+    setup_running: alreadyRunning,
+    stage: initialStage,
+    data_ready: false,
+    rows_downloaded: initRows,
+    wallets_scanned: initWallets,
+    whale_count: 0,
+    trades_fetched: false,
+    whales_selected: false,
+  });
+  const [starting, setStarting] = useState(false);
+  const [error, setError] = useState("");
+  const [elapsed, setElapsed] = useState(0);
+
+  const pollStatus = useCallback(async () => {
+    try {
+      const res = await fetch("/api/proxy/actions/setup-status");
+      const data: LiveStatus = await res.json();
+      setStatus(data);
+      if (data.data_ready) {
+        // Auto-reload the page when done
+        setTimeout(() => window.location.reload(), 1500);
+      }
+      setRunning(data.setup_running);
+    } catch {
+      // silently ignore poll errors
+    }
+  }, []);
+
+  // Poll every 8 seconds while running
+  useEffect(() => {
+    if (!running && !alreadyRunning) return;
+    pollStatus();
+    const interval = setInterval(pollStatus, 8000);
+    return () => clearInterval(interval);
+  }, [running, alreadyRunning, pollStatus]);
+
+  // Elapsed time counter
+  useEffect(() => {
+    if (!running && !alreadyRunning) return;
+    const interval = setInterval(() => setElapsed(e => e + 1), 1000);
+    return () => clearInterval(interval);
+  }, [running, alreadyRunning]);
+
+  async function startSetup() {
+    setStarting(true);
+    setError("");
     try {
       const res = await triggerAction("setup");
-      if (res.status === "already_running") {
-        setState("running");
+      if (res.status === "triggered" || res.status === "already_running") {
+        setRunning(true);
+        setElapsed(0);
+        pollStatus();
       } else {
-        setState("running");
+        setError("Unexpected response — try again");
       }
     } catch {
-      setState("error");
+      setError("Failed to reach Railway backend");
+    } finally {
+      setStarting(false);
     }
+  }
+
+  const stage = status.stage || initialStage;
+  const mins = Math.floor(elapsed / 60);
+  const secs = elapsed % 60;
+  const elapsedStr = elapsed > 0 ? `${mins}m ${secs}s` : "";
+
+  if (status.data_ready) {
+    return (
+      <div className="border border-green-700 bg-green-950/30 rounded p-3 mb-4 text-center text-green-400 text-sm font-bold">
+        ✓ Setup complete — loading dashboard…
+      </div>
+    );
+  }
+
+  if (running || alreadyRunning) {
+    return (
+      <div className="border border-green-800 bg-green-950/20 rounded p-4 mb-4">
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-green-400 font-bold text-sm">⚙ SETUP RUNNING ON RAILWAY</p>
+          {elapsedStr && <p className="text-green-800 text-xs">{elapsedStr} elapsed</p>}
+        </div>
+
+        {/* Stage */}
+        <p className="text-green-500 text-xs mb-3">
+          {STAGE_LABELS[stage] ?? stage ?? "Initializing…"}
+        </p>
+
+        {/* Progress bars */}
+        <div className="space-y-2 text-xs">
+          <ProgressRow label="Fetch wallets from Dune" done={status.trades_fetched} active={stage === "fetching"} />
+          <ProgressRow label="Rank by P&L"             done={!!(status.trades_fetched && stage !== "fetching")} active={stage === "ranking"} />
+          <ProgressRow label="Select top whales"       done={status.whales_selected} active={stage === "selecting"} />
+        </div>
+
+        {/* Stats */}
+        {(status.rows_downloaded > 0 || status.wallets_scanned > 0 || status.whale_count > 0) && (
+          <div className="mt-3 flex gap-4 text-xs text-green-700">
+            {status.rows_downloaded > 0 && <span>{status.rows_downloaded.toLocaleString()} rows</span>}
+            {status.wallets_scanned > 0  && <span>{status.wallets_scanned.toLocaleString()} wallets</span>}
+            {status.whale_count > 0      && <span>{status.whale_count} whales selected</span>}
+          </div>
+        )}
+
+        <p className="text-green-900 text-xs mt-3">Auto-refreshes every 8 seconds · page reloads when done</p>
+      </div>
+    );
   }
 
   return (
     <div className="border border-yellow-700 bg-yellow-950/30 rounded p-4 mb-4 text-center">
       <p className="text-yellow-400 font-bold text-sm mb-1">⚠ NO DATA YET — BOT NOT READY</p>
       <p className="text-yellow-700 text-xs mb-3">
-        The trade history hasn&apos;t been downloaded yet. Click the button below to run the full
-        setup pipeline on Railway. It will download all Polymarket trades, rank wallets by win rate,
-        and select the top 20 whale wallets to track. This takes several hours.
+        Fetches 14,000+ wallet rankings from the Polygon blockchain via Dune Analytics,
+        then selects the top 20 most profitable whales to monitor.
+        Takes ~5 minutes.
       </p>
+      {error && <p className="text-red-400 text-xs mb-2">{error}</p>}
+      <button
+        onClick={startSetup}
+        disabled={starting}
+        className="bg-yellow-600 hover:bg-yellow-500 disabled:opacity-40 text-black font-bold px-6 py-2 rounded text-sm"
+      >
+        {starting ? "Starting…" : "RUN SETUP ON RAILWAY"}
+      </button>
+    </div>
+  );
+}
 
-      {state === "idle" && (
-        <button
-          onClick={runSetup}
-          className="bg-yellow-600 hover:bg-yellow-500 text-black font-bold px-6 py-2 rounded text-sm"
-        >
-          RUN SETUP ON RAILWAY
-        </button>
-      )}
-
-      {state === "loading" && (
-        <p className="text-yellow-400 text-sm">Starting setup...</p>
-      )}
-
-      {state === "running" && (
-        <div>
-          <p className="text-green-400 text-sm font-bold">✓ Setup is running on Railway</p>
-          <p className="text-green-400 text-xs mt-1">{STAGE_LABELS[stage] ?? "Running…"}</p>
-          {rowsDownloaded > 0 && (
-            <p className="text-green-700 text-xs mt-1">
-              {rowsDownloaded.toLocaleString()} trades downloaded &nbsp;·&nbsp;
-              {walletsScanned.toLocaleString()} wallets scanned
-            </p>
-          )}
-          <p className="text-green-800 text-xs mt-2">Refresh this page in a few hours to see results.</p>
-        </div>
-      )}
-
-      {state === "error" && (
-        <div>
-          <p className="text-red-400 text-sm">Failed to start setup — is the Railway backend up?</p>
-          <button onClick={() => setState("idle")} className="text-xs text-red-600 underline mt-1">
-            Try again
-          </button>
-        </div>
-      )}
+function ProgressRow({ label, done, active }: { label: string; done: boolean; active: boolean }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className={done ? "text-green-400" : active ? "text-yellow-400 animate-pulse" : "text-green-900"}>
+        {done ? "✓" : active ? "▶" : "○"}
+      </span>
+      <span className={done ? "text-green-600" : active ? "text-yellow-400" : "text-green-900"}>
+        {label}
+      </span>
+      {active && <span className="text-green-800 text-xs">running…</span>}
     </div>
   );
 }
