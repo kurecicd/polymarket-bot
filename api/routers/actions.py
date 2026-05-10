@@ -105,14 +105,29 @@ def trigger_setup(background_tasks: BackgroundTasks):
             rows, wallets = 0, 0
             parquet = common.DATA_DIR / "trades_raw.parquet"
             if parquet.exists():
-                import pandas as pd
-                df = pd.read_parquet(parquet, columns=["maker_address"])
-                rows = len(df)
-                wallets = df["maker_address"].nunique()
+                try:
+                    import pandas as pd
+                    df = pd.read_parquet(parquet, columns=["maker_address"])
+                    rows = len(df)
+                    wallets = df["maker_address"].nunique()
+                except Exception:
+                    pass
 
-            # Abort if no trades were fetched
-            parquet = common.DATA_DIR / "trades_raw.parquet"
             if not parquet.exists():
+                _write_progress("failed_no_trades", running=False)
+                return
+
+            # If 0 trades (seed fallback used), skip ranking — whale_list.json already exists
+            if rows == 0:
+                whale_count = 0
+                if common.WHALE_LIST_PATH.exists():
+                    try:
+                        whale_count = len(common.read_json(common.WHALE_LIST_PATH).get("whales", []))
+                    except Exception:
+                        pass
+                if whale_count > 0:
+                    _write_progress("done", running=False, rows=0, wallets=whale_count)
+                    return
                 _write_progress("failed_no_trades", running=False)
                 return
 
@@ -151,10 +166,12 @@ def get_setup_status():
     if rankings_file.exists() and not progress.get("running"):
         stage = "done"
 
+    # data_ready = either rankings parquet exists OR whale_list.json has whales (seed mode)
+    whale_list_ready = whale_count > 0
     return {
         "setup_running": progress.get("running", False),
         "stage": stage,
-        "data_ready": rankings_file.exists(),
+        "data_ready": rankings_file.exists() or whale_list_ready,
         "trades_fetched": trades_file.exists(),
         "whales_selected": common.WHALE_LIST_PATH.exists(),
         "rows_downloaded": progress.get("rows_downloaded", 0),
