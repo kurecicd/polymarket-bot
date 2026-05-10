@@ -52,6 +52,14 @@ export default function BotControls() {
       >
         {loading === "refresh-whales" ? "…" : "REFRESH WHALES"}
       </button>
+      <button
+        onClick={() => trigger("setup")}
+        disabled={loading !== null}
+        className="border border-purple-700 px-2 py-1 rounded hover:bg-purple-900/40 disabled:opacity-40 text-purple-400"
+        title="Runs full data pipeline on Railway (takes several hours)"
+      >
+        {loading === "setup" ? "…" : "RUN SETUP"}
+      </button>
     </div>
   );
 }

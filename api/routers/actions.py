@@ -12,16 +12,16 @@ import common
 
 router = APIRouter()
 ROOT = Path(__file__).resolve().parent.parent.parent
-PYTHON = str(ROOT / "venv" / "bin" / "python")
+PYTHON = sys.executable  # works both locally (venv) and on Railway (system python)
 
 
-def _run(script: str, *args: str) -> dict:
+def _run(script: str, *args: str, timeout: int = 300) -> dict:
     try:
         result = subprocess.run(
             [PYTHON, str(ROOT / script), *args],
             capture_output=True,
             text=True,
-            timeout=300,
+            timeout=timeout,
             cwd=str(ROOT),
         )
         return {
@@ -30,7 +30,7 @@ def _run(script: str, *args: str) -> dict:
             "stderr": result.stderr[-500:],
         }
     except subprocess.TimeoutExpired:
-        return {"success": False, "stdout": "", "stderr": "Timed out after 300s"}
+        return {"success": False, "stdout": "", "stderr": f"Timed out after {timeout}s"}
     except Exception as exc:
         return {"success": False, "stdout": "", "stderr": str(exc)}
 
@@ -65,6 +65,50 @@ def trigger_refresh_whales(background_tasks: BackgroundTasks):
         _run("select_whales.py")
     background_tasks.add_task(_refresh)
     return {"status": "triggered"}
+
+
+_setup_running = False
+
+
+@router.post("/setup")
+def trigger_setup(background_tasks: BackgroundTasks):
+    """
+    Run the full data pipeline on Railway:
+      1. fetch_historical.py  (downloads all trades from subgraph — takes hours)
+      2. rank_wallets.py      (compute win rates)
+      3. select_whales.py     (pick top 20)
+    Runs in background — check /api/actions/status for data_ready flag.
+    """
+    global _setup_running
+    if _setup_running:
+        return {"status": "already_running", "message": "Setup is already in progress"}
+
+    def _full_setup():
+        global _setup_running
+        _setup_running = True
+        try:
+            common.load_env()
+            _run("fetch_historical.py", timeout=43200)  # 12h max
+            _run("rank_wallets.py", timeout=3600)
+            _run("select_whales.py", timeout=60)
+        finally:
+            _setup_running = False
+
+    background_tasks.add_task(_full_setup)
+    return {
+        "status": "triggered",
+        "message": "Full setup started. fetch_historical.py will run for several hours. Check /api/actions/status for data_ready.",
+    }
+
+
+@router.get("/setup-status")
+def get_setup_status():
+    return {
+        "setup_running": _setup_running,
+        "data_ready": (common.DATA_DIR / "wallet_rankings.parquet").exists(),
+        "trades_fetched": (common.DATA_DIR / "trades_raw.parquet").exists(),
+        "whales_selected": common.WHALE_LIST_PATH.exists(),
+    }
 
 
 @router.get("/status")
