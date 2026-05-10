@@ -100,7 +100,15 @@ def trigger_setup(background_tasks: BackgroundTasks):
         try:
             common.load_env()
             _write_progress("fetching", running=True)
-            _run("fetch_historical.py", "--wallets", "2000", timeout=43200)
+            import os as _os
+            _os.environ.setdefault("DUNE_QUERY_ID", "7465073")
+            # Use Dune if API key available (full blockchain history), else fall back to public API
+            if common.has_real_value(_os.getenv("DUNE_API_KEY", "")):
+                result = _run("dune_fetch.py", "--limit", "5000", timeout=43200)
+                if not result["success"]:
+                    _run("fetch_historical.py", "--wallets", "2000", timeout=43200)
+            else:
+                _run("fetch_historical.py", "--wallets", "2000", timeout=43200)
 
             rows, wallets = 0, 0
             parquet = common.DATA_DIR / "trades_raw.parquet"
