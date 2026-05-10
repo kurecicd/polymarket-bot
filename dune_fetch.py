@@ -72,8 +72,8 @@ SELECT
     0 AS losses
 FROM wallet_buys wb
 LEFT JOIN wallet_sells ws ON wb.wallet_address = ws.wallet_address
-WHERE wb.buy_count >= 10
-  AND wb.total_in > 100
+WHERE wb.buy_count >= 3
+  AND wb.total_in > 10
 ORDER BY total_profit_usdc DESC
 LIMIT {limit}
 """
