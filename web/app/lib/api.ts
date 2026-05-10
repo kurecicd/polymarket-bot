@@ -1,7 +1,20 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+// Server-side: goes directly to Railway (no CORS)
+// Client-side: goes through /api/proxy/* (same origin, no CORS)
+function apiBase() {
+  if (typeof window === "undefined") {
+    // Server-side render — direct to Railway
+    return process.env.RAILWAY_API_URL || "https://polymarket-bot-production-ae2d.up.railway.app";
+  }
+  // Browser — use Next.js proxy route to avoid CORS
+  return "";
+}
 
 async function apiFetch<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, { next: { revalidate: 5 } });
+  const base = apiBase();
+  // Server: /api/stats → https://railway.app/api/stats
+  // Browser: /api/stats → /api/proxy/stats
+  const url = base ? `${base}${path}` : path.replace(/^\/api\//, "/api/proxy/");
+  const res = await fetch(url, { next: { revalidate: 5 } });
   if (!res.ok) throw new Error(`API error ${res.status}: ${path}`);
   return res.json();
 }
@@ -56,7 +69,8 @@ export async function getBotStatus() {
 }
 
 export async function triggerAction(action: string, execute = false) {
-  const res = await fetch(`${API_BASE}/api/actions/${action}?execute=${execute}`, {
+  // Always use proxy — this is always called from the browser
+  const res = await fetch(`/api/proxy/actions/${action}?execute=${execute}`, {
     method: "POST",
   });
   return res.json();
