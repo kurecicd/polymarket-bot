@@ -25,7 +25,7 @@ ROOT = Path(__file__).resolve().parent.parent
 PYTHON = sys.executable
 POLL_INTERVAL = 60           # seconds between monitor runs
 PM_INTERVAL = 300            # seconds between position manager runs
-WHALE_REFRESH_INTERVAL = 30 * 24 * 3600  # monthly whale refresh
+WHALE_REFRESH_INTERVAL = 7 * 24 * 3600   # weekly whale refresh
 
 _stop_event = threading.Event()
 
