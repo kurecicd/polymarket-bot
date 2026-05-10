@@ -17,10 +17,12 @@ import argparse
 import logging
 import os
 import sys
+import time
 from datetime import datetime, timezone
 
 import common
 from consensus import run_consensus
+from notify import send_trade_opened
 from polymarket_client import PolymarketClient
 
 USE_CONSENSUS = True  # overridden by --no-consensus flag
@@ -156,7 +158,7 @@ def _execute_copy_trade(
 
     size_shares = round(size_usdc / entry_price, 4)
     profit_target_price = round(entry_price * (1 + PROFIT_TARGET_PCT), 4)
-    position_id = f"{token_id[:16]}-{int(common.time.time())}"
+    position_id = f"{token_id[:16]}-{int(time.time())}"
 
     position_record = {
         "position_id": position_id,
@@ -173,7 +175,7 @@ def _execute_copy_trade(
         "profit_target_price": profit_target_price,
         "end_date_iso": signal["end_date_iso"],
         "opened_at": common.iso_now(),
-        "opened_at_ts": int(common.time.time()),
+        "opened_at_ts": int(time.time()),
         "status": "open",
         "order_id": None,
     }
@@ -206,6 +208,7 @@ def _execute_copy_trade(
     common.record_trade_today(execution_state)
     common.save_execution_state(execution_state)
 
+    send_trade_opened(position_record, strategy="whale")
     common.append_jsonl(
         common.EXECUTION_LOG_PATH,
         {
@@ -299,8 +302,7 @@ if __name__ == "__main__":
     parser.add_argument("--no-consensus", action="store_true", help="Skip AI consensus check.")
     args = parser.parse_args()
     if args.no_consensus:
-        global USE_CONSENSUS
-        USE_CONSENSUS = False
+        USE_CONSENSUS = False  # noqa: F811
     try:
         run(execute=args.execute)
     except Exception as exc:

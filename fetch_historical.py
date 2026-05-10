@@ -9,6 +9,7 @@ Run:
 """
 import argparse
 import logging
+import os
 import sys
 import time
 
@@ -31,8 +32,8 @@ log = logging.getLogger("fetch_historical")
 
 def _build_client() -> PolymarketClient:
     common.load_env()
-    key = (common.os.getenv("POLYMARKET_PRIVATE_KEY") or "").strip()
-    chain_id = int(common.os.getenv("POLYMARKET_CHAIN_ID", "137"))
+    key = (os.getenv("POLYMARKET_PRIVATE_KEY") or "").strip()
+    chain_id = int(os.getenv("POLYMARKET_CHAIN_ID", "137"))
     if not common.has_real_value(key):
         # Allow fetching subgraph without real key (public endpoint)
         key = "0x" + "0" * 64

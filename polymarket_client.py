@@ -222,11 +222,11 @@ class PolymarketClient:
         maker_asset = (row.get("makerAssetId") or "").lower()
         if maker_asset == USDC_ADDRESS.lower():
             usdc_amount = int(row["makerAmountFilled"]) / 1e6
-            shares = int(row["takerAmountFilled"])
+            shares = int(row["takerAmountFilled"]) / 1e6
             token_id = row["takerAssetId"]
             side = "BUY"
         else:
-            shares = int(row["makerAmountFilled"])
+            shares = int(row["makerAmountFilled"]) / 1e6
             usdc_amount = int(row["takerAmountFilled"]) / 1e6
             token_id = row["makerAssetId"]
             side = "SELL"

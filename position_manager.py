@@ -22,6 +22,7 @@ import sys
 from datetime import datetime, timezone
 
 import common
+from notify import send_trade_closed
 from polymarket_client import PolymarketClient
 
 PROFIT_TARGET_PCT = float(os.getenv("POLYMARKET_PROFIT_TARGET_PCT", "0.25"))
@@ -168,6 +169,7 @@ def _close_position(
     position["exit_price"] = current_price or None
     position["realized_pnl"] = realized_pnl
 
+    send_trade_closed(position, reason)
     common.append_jsonl(
         common.EXECUTION_LOG_PATH,
         {
