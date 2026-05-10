@@ -23,8 +23,9 @@ from api.routers import stats, positions, whales, activity, actions
 
 ROOT = Path(__file__).resolve().parent.parent
 PYTHON = sys.executable
-POLL_INTERVAL = 60      # seconds between monitor runs
-PM_INTERVAL = 300       # seconds between position manager runs
+POLL_INTERVAL = 60           # seconds between monitor runs
+PM_INTERVAL = 300            # seconds between position manager runs
+WHALE_REFRESH_INTERVAL = 30 * 24 * 3600  # monthly whale refresh
 
 _stop_event = threading.Event()
 
@@ -32,6 +33,7 @@ _stop_event = threading.Event()
 def _bot_loop():
     """Background thread: runs monitor.py + position_manager.py on a schedule."""
     last_pm = 0
+    last_whale_refresh = 0
     while not _stop_event.is_set():
         try:
             state = common.load_execution_state()
@@ -46,6 +48,17 @@ def _bot_loop():
                         cwd=str(ROOT), timeout=50, capture_output=True
                     )
                     last_pm = time.time()
+                # Monthly whale refresh
+                if time.time() - last_whale_refresh >= WHALE_REFRESH_INTERVAL:
+                    subprocess.run(
+                        [PYTHON, str(ROOT / "dune_fetch.py"), "--limit", "200"],
+                        cwd=str(ROOT), timeout=300, capture_output=True
+                    )
+                    subprocess.run(
+                        [PYTHON, str(ROOT / "select_whales.py")],
+                        cwd=str(ROOT), timeout=60, capture_output=True
+                    )
+                    last_whale_refresh = time.time()
         except Exception:
             pass
         _stop_event.wait(POLL_INTERVAL)

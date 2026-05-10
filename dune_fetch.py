@@ -34,47 +34,34 @@ DUNE_API = "https://api.dune.com/api/v1"
 RANKINGS_PATH = common.DATA_DIR / "wallet_rankings.parquet"
 
 WALLET_RANKING_SQL = """
-WITH buys AS (
+WITH recent_buys AS (
     SELECT
         maker AS wallet_address,
-        CAST(makerAmountFilled AS DOUBLE) / 1e6 AS usdc_spent,
-        CAST(takerAmountFilled AS DOUBLE) / 1e6 AS shares_received
+        COUNT(*) AS trade_count,
+        SUM(CAST(makerAmountFilled AS DOUBLE) / 1e6) AS volume_usdc,
+        AVG(CAST(makerAmountFilled AS DOUBLE) / 1e6) AS avg_size_usdc
     FROM polymarket_polygon.ctfexchange_evt_orderfilled
     WHERE CAST(makerAssetId AS VARCHAR) = '0'
-),
-sells AS (
-    SELECT
-        maker AS wallet_address,
-        CAST(takerAmountFilled AS DOUBLE) / 1e6 AS usdc_received
-    FROM polymarket_polygon.ctfexchange_evt_orderfilled
-    WHERE CAST(takerAssetId AS VARCHAR) = '0'
-),
-wallet_buys AS (
-    SELECT wallet_address, COUNT(*) AS buy_count, SUM(usdc_spent) AS total_in,
-           AVG(usdc_spent) AS avg_position_size
-    FROM buys GROUP BY wallet_address
-),
-wallet_sells AS (
-    SELECT wallet_address, SUM(usdc_received) AS total_out
-    FROM sells GROUP BY wallet_address
+      AND evt_block_time > CURRENT_TIMESTAMP - INTERVAL '30' DAY
+    GROUP BY maker
+    HAVING COUNT(*) >= 10
+       AND SUM(CAST(makerAmountFilled AS DOUBLE) / 1e6) >= 1000
+       AND AVG(CAST(makerAmountFilled AS DOUBLE) / 1e6) >= 200
 )
 SELECT
-    wb.wallet_address AS maker_address,
-    wb.buy_count AS total_trades,
-    wb.total_in AS total_usdc_in,
-    COALESCE(ws.total_out, 0) AS total_usdc_out,
-    COALESCE(ws.total_out, 0) - wb.total_in AS total_profit_usdc,
-    ROUND(100.0 * (COALESCE(ws.total_out, 0) - wb.total_in) / NULLIF(wb.total_in, 0), 2) AS roi_pct,
-    ROUND(wb.avg_position_size, 2) AS avg_position_size_usdc,
+    wallet_address AS maker_address,
+    trade_count AS total_trades,
+    ROUND(volume_usdc, 2) AS total_usdc_in,
+    0.0 AS total_usdc_out,
+    0.0 AS total_profit_usdc,
+    0.0 AS roi_pct,
+    ROUND(avg_size_usdc, 2) AS avg_position_size_usdc,
     0.0 AS win_rate,
     0 AS resolved_trades,
     0 AS wins,
     0 AS losses
-FROM wallet_buys wb
-LEFT JOIN wallet_sells ws ON wb.wallet_address = ws.wallet_address
-WHERE wb.buy_count >= 3
-  AND wb.total_in > 10
-ORDER BY total_profit_usdc DESC
+FROM recent_buys
+ORDER BY volume_usdc DESC
 LIMIT {limit}
 """
 
