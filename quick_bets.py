@@ -27,7 +27,7 @@ from polymarket_client import PolymarketClient
 
 MAX_QUICK_BETS_PER_DAY = int(os.getenv("POLYMARKET_QUICK_BETS_PER_DAY", "3"))
 MIN_LIQUIDITY = float(os.getenv("POLYMARKET_MIN_LIQUIDITY", "10000"))
-MIN_EDGE_PCT = float(os.getenv("POLYMARKET_QUICK_BET_EDGE", "0.08"))   # 8% mispricing minimum
+MIN_EDGE_PCT = float(os.getenv("POLYMARKET_QUICK_BET_EDGE", "0.03"))   # 3% mispricing minimum
 QUICK_BET_SIZE_PCT = float(os.getenv("POLYMARKET_QUICK_BET_SIZE_PCT", "0.01"))  # 1% of balance
 HOURS_BEFORE_CLOSE = float(os.getenv("POLYMARKET_HOURS_BEFORE_CLOSE", "72"))
 
