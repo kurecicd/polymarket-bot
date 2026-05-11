@@ -136,11 +136,14 @@ def debug_logs(n: int = 50):
 _last_qb_output: dict = {"stdout": "", "stderr": "", "returncode": None, "ran_at": None}
 
 @app.post("/api/debug/run-quick-bets")
-def run_quick_bets_debug():
+def run_quick_bets_debug(execute: bool = False):
     """Run quick_bets.py synchronously and return full output for debugging."""
     import os as _os
+    args = [PYTHON, str(ROOT / "quick_bets.py")]
+    if execute:
+        args.append("--execute")
     result = subprocess.run(
-        [PYTHON, str(ROOT / "quick_bets.py")],
+        args,
         cwd=str(ROOT), timeout=120, capture_output=True, text=True,
         env=_os.environ.copy()
     )
