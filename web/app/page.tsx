@@ -1,4 +1,5 @@
 import { getStats, getPositions, getWhales, getActivity, getConsensusLog, getBotStatus, getSetupStatus } from "./lib/api";
+import LocalTime from "./components/LocalTime";
 import SetupBanner from "./components/SetupBanner";
 import StatsBar from "./components/StatsBar";
 import WhaleTable from "./components/WhaleTable";
@@ -29,7 +30,7 @@ export default async function Dashboard() {
           <p className="text-xs text-green-700">
             {status?.execution_mode === "execute" ? "● LIVE" : "● DRY-RUN"} &nbsp;·&nbsp;
             {status?.whale_count ?? 0} whales tracked &nbsp;·&nbsp;
-            last poll: {status?.last_poll ? new Date(status.last_poll).toLocaleTimeString() : "never"}
+            last poll: {status?.last_poll ? <LocalTime utc={status.last_poll} /> : "never"}
           </p>
         </div>
         <BotControls />
