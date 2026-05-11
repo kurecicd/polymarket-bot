@@ -55,6 +55,7 @@ export default function BotControls() {
         {/* Live/Dry-run toggle */}
         <button
           onClick={toggleLive}
+          title={live ? "Bot is placing real orders. Click to switch to dry-run (simulation only)." : "Dry-run mode — bot monitors but places NO real orders. Click to go live."}
           className={`px-3 py-1 rounded font-bold text-xs border ${
             live
               ? "bg-red-600 border-red-500 text-white"
@@ -67,6 +68,7 @@ export default function BotControls() {
         <button
           onClick={() => trigger("monitor", live)}
           disabled={loading !== null}
+          title="Run one poll cycle now — checks all 20 whale wallets for new trades and copies any signals found."
           className="border border-green-700 px-2 py-1 rounded hover:bg-green-900/40 disabled:opacity-40"
         >
           {loading === "monitor" ? "…" : "POLL"}
@@ -74,6 +76,7 @@ export default function BotControls() {
         <button
           onClick={() => trigger("quick-bets", live)}
           disabled={loading !== null}
+          title="Scan active markets for mispricings — places bets where the order book suggests the price is wrong."
           className="border border-cyan-700 px-2 py-1 rounded hover:bg-cyan-900/40 disabled:opacity-40 text-cyan-400"
         >
           {loading === "quick-bets" ? "…" : "QUICK BET"}
@@ -81,6 +84,7 @@ export default function BotControls() {
         <button
           onClick={() => trigger("position-manager", live)}
           disabled={loading !== null}
+          title="Check all open positions for exit conditions: +25% profit, whale selling, or market closing soon."
           className="border border-green-700 px-2 py-1 rounded hover:bg-green-900/40 disabled:opacity-40"
         >
           {loading === "position-manager" ? "…" : "CHECK EXITS"}
@@ -88,6 +92,7 @@ export default function BotControls() {
         <button
           onClick={() => trigger("refresh-whales")}
           disabled={loading !== null}
+          title="Re-run Dune query to find the most active profitable wallets in the last 30 days and update the watch list."
           className="border border-yellow-700 px-2 py-1 rounded hover:bg-yellow-900/40 disabled:opacity-40 text-yellow-400"
         >
           {loading === "refresh-whales" ? "…" : "REFRESH WHALES"}
@@ -95,6 +100,7 @@ export default function BotControls() {
         <button
           onClick={() => trigger("setup")}
           disabled={loading !== null}
+          title="Full setup: fetch 14k wallet rankings from blockchain via Dune, rank by P&L, select top 20 whales. Run once or after a long break."
           className="border border-purple-700 px-2 py-1 rounded hover:bg-purple-900/40 disabled:opacity-40 text-purple-400"
         >
           {loading === "setup" ? "…" : "RUN SETUP"}
