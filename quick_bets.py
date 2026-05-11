@@ -97,28 +97,40 @@ def find_opportunities(client: PolymarketClient) -> list[dict]:
 
     for market in markets:
         condition_id = market.get("conditionId") or market.get("condition_id") or ""
-        tokens = market.get("tokens") or []
-        if not tokens or not condition_id:
+        if not condition_id:
             continue
 
-        end_date = market.get("endDateIso") or market.get("end_date_iso") or ""
+        end_date = market.get("endDateIso") or market.get("endDate") or ""
         if not end_date:
             continue
         if PolymarketClient.hours_until_end(end_date) <= HOURS_BEFORE_CLOSE:
             continue
 
-        # Find YES token
-        yes_token = next((t for t in tokens if (t.get("outcome") or "").upper() == "YES"), None)
-        if not yes_token:
-            yes_token = tokens[0]
-
-        token_id = yes_token.get("token_id") or yes_token.get("tokenId") or ""
-        if not token_id:
+        # Extract YES token ID from clobTokenIds (first = YES token)
+        import json as _json, re as _re
+        clob_ids = market.get("clobTokenIds") or "[]"
+        if isinstance(clob_ids, str):
+            try:
+                clob_ids = _json.loads(clob_ids)
+            except Exception:
+                clob_ids = _re.findall(r'\d{60,}', clob_ids)
+        if not clob_ids:
             continue
+        token_id = str(clob_ids[0])
 
-        current_price = float(yes_token.get("price") or 0)
+        # Get current YES price from outcomePrices
+        outcome_prices = market.get("outcomePrices") or "[0.5, 0.5]"
+        if isinstance(outcome_prices, str):
+            try:
+                prices = _json.loads(outcome_prices)
+                current_price = float(prices[0]) if prices else 0.5
+            except Exception:
+                current_price = 0.5
+        else:
+            current_price = 0.5
+
         if current_price <= 0.02 or current_price >= 0.98:
-            continue  # Skip near-certain outcomes — not interesting
+            continue  # Skip near-certain outcomes
 
         try:
             book = client.get_book(token_id)

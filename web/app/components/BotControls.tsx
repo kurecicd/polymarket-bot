@@ -100,10 +100,10 @@ export default function BotControls() {
         <button
           onClick={() => trigger("setup")}
           disabled={loading !== null}
-          title="Full setup: fetch 14k wallet rankings from blockchain via Dune, rank by P&L, select top 20 whales. Run once or after a long break."
-          className="border border-purple-700 px-2 py-1 rounded hover:bg-purple-900/40 disabled:opacity-40 text-purple-400"
+          title="Re-run full setup: refreshes whale rankings from blockchain via Dune. Only needed monthly or if whale list goes stale."
+          className="border border-green-900 px-2 py-1 rounded text-green-900 disabled:opacity-40 cursor-default text-xs"
         >
-          {loading === "setup" ? "…" : "RUN SETUP"}
+          SETUP ✓
         </button>
       </div>
       {live && (
