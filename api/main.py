@@ -28,39 +28,52 @@ PM_INTERVAL = 300            # seconds between position manager runs
 WHALE_REFRESH_INTERVAL = 7 * 24 * 3600   # weekly whale refresh
 
 _stop_event = threading.Event()
+_last_monitor_output = {"stdout": "", "stderr": "", "returncode": None, "ran_at": None}
 
 
 def _bot_loop():
     """Background thread: runs monitor.py + position_manager.py on a schedule."""
+    import logging as _logging
+    _log = _logging.getLogger("bot_loop")
     last_pm = 0
     last_whale_refresh = 0
+
     while not _stop_event.is_set():
         try:
+            common.load_env()
             state = common.load_execution_state()
             if state.get("execution_mode") == "execute":
-                subprocess.run(
+                env = {**__import__("os").environ}
+                result = subprocess.run(
                     [PYTHON, str(ROOT / "monitor.py"), "--execute"],
-                    cwd=str(ROOT), timeout=50, capture_output=True
+                    cwd=str(ROOT), timeout=55, capture_output=True, text=True, env=env
                 )
+                _last_monitor_output["stdout"] = result.stdout[-1000:]
+                _last_monitor_output["stderr"] = result.stderr[-500:]
+                _last_monitor_output["returncode"] = result.returncode
+                _last_monitor_output["ran_at"] = common.iso_now()
+                if result.returncode != 0:
+                    _log.error(f"monitor.py failed: {result.stderr[-500:]}")
+
                 if time.time() - last_pm >= PM_INTERVAL:
                     subprocess.run(
                         [PYTHON, str(ROOT / "position_manager.py"), "--execute"],
-                        cwd=str(ROOT), timeout=50, capture_output=True
+                        cwd=str(ROOT), timeout=55, capture_output=True, env=env
                     )
                     last_pm = time.time()
-                # Monthly whale refresh
+
                 if time.time() - last_whale_refresh >= WHALE_REFRESH_INTERVAL:
                     subprocess.run(
                         [PYTHON, str(ROOT / "dune_fetch.py"), "--limit", "200"],
-                        cwd=str(ROOT), timeout=300, capture_output=True
+                        cwd=str(ROOT), timeout=300, capture_output=True, env=env
                     )
                     subprocess.run(
                         [PYTHON, str(ROOT / "select_whales.py")],
-                        cwd=str(ROOT), timeout=60, capture_output=True
+                        cwd=str(ROOT), timeout=60, capture_output=True, env=env
                     )
                     last_whale_refresh = time.time()
-        except Exception:
-            pass
+        except Exception as e:
+            _log.error(f"bot_loop error: {e}")
         _stop_event.wait(POLL_INTERVAL)
 
 
@@ -93,6 +106,11 @@ app.include_router(actions.router, prefix="/api/actions", tags=["actions"])
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+@app.get("/api/debug/monitor")
+def debug_monitor():
+    return _last_monitor_output
 
 
 @app.post("/api/mode/{mode}")
