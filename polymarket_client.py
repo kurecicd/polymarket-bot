@@ -81,7 +81,8 @@ class PolymarketClient:
 
     def get_usdc_balance(self) -> float:
         """Returns USDC balance available for trading (in USD, not wei)."""
-        data = _get(f"{CLOB_BASE}/balance-allowance", params={"asset_type": "COLLATERAL", "address": self.address})
+        from py_clob_client.clob_types import AssetType
+        data = self._clob.get_balance_allowance(params={"asset_type": AssetType.COLLATERAL})
         return float(data.get("balance", 0)) / 1e6
 
     # ── Market data ───────────────────────────────────────────────────────────
