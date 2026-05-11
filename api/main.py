@@ -113,6 +113,26 @@ def debug_monitor():
     return _last_monitor_output
 
 
+@app.get("/api/debug/logs")
+def debug_logs(n: int = 50):
+    """Return last N lines from event_log.jsonl and execution_log.jsonl."""
+    import json as _json
+
+    def _tail(path: Path, lines: int) -> list:
+        if not path.exists():
+            return []
+        try:
+            raw = path.read_text().strip().splitlines()
+            return [_json.loads(l) for l in raw[-lines:] if l.strip()]
+        except Exception as exc:
+            return [{"error": str(exc)}]
+
+    return {
+        "event_log": _tail(common.EVENT_LOG_PATH, n),
+        "execution_log": _tail(common.EXECUTION_LOG_PATH, n),
+    }
+
+
 _last_qb_output: dict = {"stdout": "", "stderr": "", "returncode": None, "ran_at": None}
 
 @app.post("/api/debug/run-quick-bets")
