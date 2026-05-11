@@ -245,4 +245,7 @@ class PolymarketClient:
     @staticmethod
     def hours_until_end(end_date_iso: str) -> float:
         end_dt = datetime.fromisoformat(end_date_iso.replace("Z", "+00:00"))
+        # Make offset-naive datetimes UTC-aware
+        if end_dt.tzinfo is None:
+            end_dt = end_dt.replace(tzinfo=timezone.utc)
         return (end_dt - datetime.now(timezone.utc)).total_seconds() / 3600

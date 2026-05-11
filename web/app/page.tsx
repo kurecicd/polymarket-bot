@@ -1,5 +1,6 @@
 import { getStats, getPositions, getWhales, getActivity, getConsensusLog, getBotStatus, getSetupStatus } from "./lib/api";
 import LocalTime from "./components/LocalTime";
+import LiveStatus from "./components/LiveStatus";
 import SetupBanner from "./components/SetupBanner";
 import StatsBar from "./components/StatsBar";
 import WhaleTable from "./components/WhaleTable";
@@ -28,9 +29,7 @@ export default async function Dashboard() {
         <div>
           <h1 className="text-xl font-bold text-green-300">POLYMARKET WHALE BOT</h1>
           <p className="text-xs text-green-700">
-            {status?.execution_mode === "execute" ? "● LIVE" : "● DRY-RUN"} &nbsp;·&nbsp;
-            {status?.whale_count ?? 0} whales tracked &nbsp;·&nbsp;
-            last poll: {status?.last_poll ? <LocalTime utc={status.last_poll} /> : "never"}
+            <LiveStatus />
           </p>
         </div>
         <BotControls />
