@@ -128,17 +128,26 @@ class PolymarketClient:
         limit: int = 50,
         cursor: str | None = None,
     ) -> list[dict[str, Any]]:
-        """Recent trades for a specific wallet address via CLOB REST."""
-        params: dict[str, Any] = {
-            "maker_address": maker_address,
-            "limit": limit,
-        }
-        if cursor:
-            params["cursor"] = cursor
-        data = _get(f"{CLOB_BASE}/trades", params=params)
-        if isinstance(data, dict):
-            return data.get("data", [])
-        return data or []
+        """Recent trades for a wallet via public data-api (no auth needed)."""
+        # data-api is public and works for any wallet address
+        data = _get("https://data-api.polymarket.com/trades",
+                    params={"user": maker_address, "limit": limit})
+        if not isinstance(data, list):
+            return []
+        # Normalize to the field names monitor.py expects
+        result = []
+        for t in data:
+            result.append({
+                "id": t.get("transactionHash", "") + t.get("asset", ""),
+                "side": t.get("side", ""),
+                "asset_id": t.get("asset", ""),
+                "market": t.get("conditionId", ""),
+                "price": str(t.get("price", 0)),
+                "size": str(t.get("size", 0)),
+                "timestamp": str(t.get("timestamp", 0)),
+                "title": t.get("title", ""),
+            })
+        return result
 
     # ── Subgraph (bulk historical) ────────────────────────────────────────────
 
