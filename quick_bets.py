@@ -204,7 +204,13 @@ def run(execute: bool = False) -> None:
         log.info("No quick bet opportunities found.")
         return
 
-    usdc_balance = client.get_usdc_balance() if execute else 10_000.0
+    if execute:
+        usdc_balance = client.get_usdc_balance()
+        if usdc_balance < 1.0:
+            log.warning(f"CLOB balance too low (${usdc_balance:.2f}) — deposit USDC via Polymarket UI or check private key matches your trading wallet")
+            return
+    else:
+        usdc_balance = 10_000.0
     bets_placed = 0
 
     for opp in opportunities[:5]:  # check top 5, place up to daily limit
