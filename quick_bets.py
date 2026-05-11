@@ -106,7 +106,7 @@ def find_opportunities(client: PolymarketClient) -> list[dict]:
         if PolymarketClient.hours_until_end(end_date) <= HOURS_BEFORE_CLOSE:
             continue
 
-        # Extract YES token ID from clobTokenIds (first = YES token)
+        # Extract YES/NO token IDs from clobTokenIds
         import json as _json, re as _re
         clob_ids = market.get("clobTokenIds") or "[]"
         if isinstance(clob_ids, str):
@@ -116,24 +116,26 @@ def find_opportunities(client: PolymarketClient) -> list[dict]:
                 clob_ids = _re.findall(r'\d{60,}', clob_ids)
         if not clob_ids:
             continue
-        token_id = str(clob_ids[0])
+        yes_token_id = str(clob_ids[0])
+        no_token_id = str(clob_ids[1]) if len(clob_ids) > 1 else None
 
         # Get current YES price from outcomePrices
         outcome_prices = market.get("outcomePrices") or "[0.5, 0.5]"
         if isinstance(outcome_prices, str):
             try:
                 prices = _json.loads(outcome_prices)
-                current_price = float(prices[0]) if prices else 0.5
+                yes_price = float(prices[0]) if prices else 0.5
+                no_price = float(prices[1]) if len(prices) > 1 else 1 - yes_price
             except Exception:
-                current_price = 0.5
+                yes_price, no_price = 0.5, 0.5
         else:
-            current_price = 0.5
+            yes_price, no_price = 0.5, 0.5
 
-        if current_price <= 0.02 or current_price >= 0.98:
+        if yes_price <= 0.02 or yes_price >= 0.98:
             continue  # Skip near-certain outcomes
 
         try:
-            book = client.get_book(token_id)
+            book = client.get_book(yes_token_id)
         except RuntimeError:
             continue
 
@@ -141,9 +143,22 @@ def find_opportunities(client: PolymarketClient) -> list[dict]:
         if fair_value is None:
             continue
 
-        edge = fair_value - current_price  # positive = YES is underpriced
+        edge = fair_value - yes_price  # positive = YES underpriced, negative = NO underpriced
         if abs(edge) < MIN_EDGE_PCT:
             continue
+
+        if edge > 0:
+            # YES is underpriced → BUY YES
+            token_id = yes_token_id
+            current_price = yes_price
+            side = "BUY"
+        else:
+            # YES is overpriced → NO is underpriced → BUY NO
+            if not no_token_id:
+                continue
+            token_id = no_token_id
+            current_price = no_price
+            side = "BUY"
 
         opportunities.append({
             "condition_id": condition_id,
@@ -152,12 +167,13 @@ def find_opportunities(client: PolymarketClient) -> list[dict]:
             "current_price": round(current_price, 4),
             "fair_value": round(fair_value, 4),
             "edge": round(edge, 4),
-            "side": "BUY" if edge > 0 else "SKIP",  # only bet YES for simplicity
+            "side": side,
+            "outcome": "YES" if edge > 0 else "NO",
             "liquidity": float(market.get("liquidity") or 0),
             "end_date_iso": end_date,
             "market_liquidity": float(market.get("liquidity") or 0),
             "price": str(current_price),
-            "size": "0",  # will be set at execution
+            "size": "0",
         })
 
     # Sort by absolute edge descending
@@ -200,7 +216,7 @@ def run(execute: bool = False) -> None:
             continue
 
         log.info(
-            f"Opportunity: {opp['market_question'][:60]} | "
+            f"Opportunity [{opp.get('outcome','YES')}]: {opp['market_question'][:55]} | "
             f"price={opp['current_price']:.3f} fair={opp['fair_value']:.3f} "
             f"edge={opp['edge']:+.3f}"
         )
