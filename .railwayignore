@@ -1,0 +1,10 @@
+venv/
+.venv/
+web/node_modules/
+web/.next/
+data/
+runtime/
+__pycache__/
+*.pyc
+*.parquet
+.git/
