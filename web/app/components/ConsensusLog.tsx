@@ -15,7 +15,9 @@ export default function ConsensusLog({ events }: { events: ActivityEvent[] }) {
           const approved = d.approved ?? false;
           const votes = d.buy_count ?? 0;
           const market = (d.market ?? "?").slice(0, 40);
-          const time = e.time?.slice(11, 16) ?? "?";
+          const time = e.time
+            ? new Date(e.time).toLocaleTimeString("sv-SE", { timeZone: "Europe/Stockholm", hour12: false, hour: "2-digit", minute: "2-digit" })
+            : "?";
           return (
             <div key={i} className="text-xs border-b border-green-950 pb-1">
               <div className="flex items-center gap-2">

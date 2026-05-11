@@ -118,6 +118,7 @@ export interface Whale {
 export interface ActivityEvent {
   time: string;
   script: string;
+  run_id?: string;
   event: string;
   details: Record<string, unknown>;
 }
