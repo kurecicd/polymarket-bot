@@ -113,6 +113,26 @@ def debug_monitor():
     return _last_monitor_output
 
 
+_last_qb_output: dict = {"stdout": "", "stderr": "", "returncode": None, "ran_at": None}
+
+@app.post("/api/debug/run-quick-bets")
+def run_quick_bets_debug():
+    """Run quick_bets.py synchronously and return full output for debugging."""
+    import os as _os
+    result = subprocess.run(
+        [PYTHON, str(ROOT / "quick_bets.py")],
+        cwd=str(ROOT), timeout=120, capture_output=True, text=True,
+        env=_os.environ.copy()
+    )
+    _last_qb_output.update({
+        "stdout": result.stdout[-3000:],
+        "stderr": result.stderr[-1000:],
+        "returncode": result.returncode,
+        "ran_at": common.iso_now(),
+    })
+    return _last_qb_output
+
+
 @app.post("/api/mode/{mode}")
 def set_mode(mode: str):
     """Switch between dry_run and execute mode. Persists across restarts."""
