@@ -23,28 +23,28 @@ _SESSION = requests.Session()
 _SESSION.headers["User-Agent"] = "polymarket-whale-bot/1.0"
 
 
-def _get(url: str, params: dict | None = None, retries: int = 3) -> Any:
+def _get(url: str, params: dict | None = None, retries: int = 2) -> Any:
     for attempt in range(retries):
         try:
-            resp = _SESSION.get(url, params=params, timeout=15)
+            resp = _SESSION.get(url, params=params, timeout=8)
             resp.raise_for_status()
             return resp.json()
         except requests.RequestException as exc:
             if attempt == retries - 1:
-                raise RuntimeError(f"GET {url} failed after {retries} attempts: {exc}") from exc
-            time.sleep(2 ** attempt)
+                raise RuntimeError(f"GET {url} failed: {exc}") from exc
+            time.sleep(1)
 
 
-def _post_json(url: str, payload: dict, retries: int = 3) -> Any:
+def _post_json(url: str, payload: dict, retries: int = 2) -> Any:
     for attempt in range(retries):
         try:
-            resp = _SESSION.post(url, json=payload, timeout=30)
+            resp = _SESSION.post(url, json=payload, timeout=15)
             resp.raise_for_status()
             return resp.json()
         except requests.RequestException as exc:
             if attempt == retries - 1:
-                raise RuntimeError(f"POST {url} failed after {retries} attempts: {exc}") from exc
-            time.sleep(2 ** attempt)
+                raise RuntimeError(f"POST {url} failed: {exc}") from exc
+            time.sleep(1)
 
 
 class PolymarketClient:

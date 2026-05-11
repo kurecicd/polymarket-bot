@@ -35,7 +35,7 @@ def _run_monitor():
     try:
         result = subprocess.run(
             [PYTHON, str(ROOT / "monitor.py"), "--execute"],
-            cwd=str(ROOT), timeout=55, capture_output=True, text=True, env=os.environ.copy()
+            cwd=str(ROOT), timeout=120, capture_output=True, text=True, env=os.environ.copy()
         )
         _last_monitor_output.update({
             "stdout": result.stdout[-1000:],
