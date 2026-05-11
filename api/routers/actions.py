@@ -35,34 +35,62 @@ def _run(script: str, *args: str, timeout: int = 300) -> dict:
         return {"success": False, "stdout": "", "stderr": str(exc)}
 
 
+def _log_action(button: str, execute: bool, result: dict) -> None:
+    """Write button press + outcome to event_log so Activity Feed shows it."""
+    stdout = result.get("stdout", "")
+    # Extract the last meaningful log line as a summary
+    lines = [l.strip() for l in stdout.splitlines() if l.strip() and "INFO" in l]
+    summary = lines[-1].split("INFO")[-1].strip() if lines else ("ok" if result["success"] else result.get("stderr", "error")[:120])
+    common.log_event(
+        "dashboard",
+        button,
+        "button_press",
+        execute=execute,
+        success=result["success"],
+        summary=summary,
+        rc=0 if result["success"] else 1,
+    )
+
+
+def _run_and_log(script: str, button: str, execute: bool, *args: str, timeout: int = 300) -> None:
+    result = _run(script, *args, timeout=timeout)
+    _log_action(button, execute, result)
+
+
 @router.post("/monitor")
 def trigger_monitor(background_tasks: BackgroundTasks, execute: bool = False):
     """Trigger one monitor poll cycle."""
     args = ["--execute"] if execute else []
-    background_tasks.add_task(_run, "monitor.py", *args)
+    common.log_event("dashboard", "POLL", "button_press", execute=execute, status="started")
+    background_tasks.add_task(_run_and_log, "monitor.py", "POLL", execute, *args)
     return {"status": "triggered", "execute": execute}
 
 
 @router.post("/quick-bets")
 def trigger_quick_bets(background_tasks: BackgroundTasks, execute: bool = False):
     args = ["--execute"] if execute else []
-    background_tasks.add_task(_run, "quick_bets.py", *args)
+    common.log_event("dashboard", "QUICK_BET", "button_press", execute=execute, status="started")
+    background_tasks.add_task(_run_and_log, "quick_bets.py", "QUICK_BET", execute, *args)
     return {"status": "triggered", "execute": execute}
 
 
 @router.post("/position-manager")
 def trigger_position_manager(background_tasks: BackgroundTasks, execute: bool = False):
     args = ["--execute"] if execute else []
-    background_tasks.add_task(_run, "position_manager.py", *args)
+    common.log_event("dashboard", "CHECK_EXITS", "button_press", execute=execute, status="started")
+    background_tasks.add_task(_run_and_log, "position_manager.py", "CHECK_EXITS", execute, *args)
     return {"status": "triggered", "execute": execute}
 
 
 @router.post("/refresh-whales")
 def trigger_refresh_whales(background_tasks: BackgroundTasks):
     """Re-run wallet ranking and whale selection."""
+    common.log_event("dashboard", "REFRESH_WHALES", "button_press", execute=False, status="started")
     def _refresh():
-        _run("rank_wallets.py")
-        _run("select_whales.py")
+        r1 = _run("rank_wallets.py")
+        r2 = _run("select_whales.py")
+        combined = {"success": r1["success"] and r2["success"], "stdout": r1["stdout"] + r2["stdout"], "stderr": r1["stderr"] + r2["stderr"]}
+        _log_action("REFRESH_WHALES", False, combined)
     background_tasks.add_task(_refresh)
     return {"status": "triggered"}
 
