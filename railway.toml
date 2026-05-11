@@ -7,6 +7,7 @@ watchPatterns = ["api/**", "*.py", "requirements.txt"]
 healthcheckPath = "/health"
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 5
+region = "europe-west4"
 
 [[mounts]]
 mountPath = "/data"
