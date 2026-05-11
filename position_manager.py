@@ -51,6 +51,9 @@ def _build_client() -> PolymarketClient:
     client = PolymarketClient(private_key=private_key, chain_id=chain_id)
     if common.has_real_value(api_key):
         client.set_api_credentials(api_key, api_secret, api_passphrase)
+    else:
+        creds = client.derive_api_key()
+        client.set_api_credentials(creds["api_key"], creds["api_secret"], creds["api_passphrase"])
     return client
 
 
