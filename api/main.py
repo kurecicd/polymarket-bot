@@ -133,6 +133,22 @@ def debug_logs(n: int = 50):
     }
 
 
+@app.delete("/api/debug/clear-simulated-positions")
+def clear_simulated_positions():
+    """Remove dry-run positions that were never real orders (order_response empty)."""
+    state = common.load_execution_state()
+    before = len(state.get("active_positions", {}))
+    state["active_positions"] = {
+        k: v for k, v in state.get("active_positions", {}).items()
+        if v.get("order_id")  # keep only positions with a real order ID
+    }
+    # Also reset daily_trade_log entries that came from dry runs
+    state["daily_trade_log"] = []
+    common.save_execution_state(state)
+    after = len(state["active_positions"])
+    return {"removed": before - after, "remaining": after}
+
+
 _last_qb_output: dict = {"stdout": "", "stderr": "", "returncode": None, "ran_at": None}
 
 @app.post("/api/debug/run-quick-bets")

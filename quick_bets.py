@@ -239,7 +239,7 @@ def run(execute: bool = False) -> None:
 
         size_usdc = round(usdc_balance * QUICK_BET_SIZE_PCT, 2)
         size_shares = round(size_usdc / opp["current_price"], 4)
-        profit_target = round(opp["current_price"] * 1.20, 4)  # tighter 20% target for quick bets
+        profit_target = round(min(opp["current_price"] * 1.20, 0.97), 4)  # cap at 0.97 (can't exceed 1.0)
         position_id = f"qb-{opp['token_id'][:12]}-{int(common.time.time())}"
 
         position_record = {
@@ -284,7 +284,8 @@ def run(execute: bool = False) -> None:
                 continue
 
         execution_state["active_positions"][position_id] = position_record
-        common.record_trade_today(execution_state)
+        if execute:
+            common.record_trade_today(execution_state)  # only count real trades toward daily limit
         common.save_execution_state(execution_state)
         common.append_jsonl(common.EXECUTION_LOG_PATH, {
             "event": "copy_trade_opened",
