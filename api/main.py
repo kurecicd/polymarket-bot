@@ -113,6 +113,27 @@ def debug_monitor():
     return _last_monitor_output
 
 
+@app.get("/api/debug/balance")
+def debug_balance():
+    """Show raw balance-allowance response to diagnose $0 balance issue."""
+    import os as _os
+    common.load_env()
+    key = _os.getenv("POLYMARKET_PRIVATE_KEY", "").strip()
+    if not key:
+        return {"error": "POLYMARKET_PRIVATE_KEY not set"}
+    try:
+        from polymarket_client import PolymarketClient
+        from py_clob_client.clob_types import BalanceAllowanceParams, AssetType
+        client = PolymarketClient(private_key=key)
+        creds = client.derive_api_key()
+        client.set_api_credentials(creds["api_key"], creds["api_secret"], creds["api_passphrase"])
+        raw = client._clob.get_balance_allowance(params=BalanceAllowanceParams(asset_type=AssetType.COLLATERAL))
+        usdc = float(raw.get("balance", 0)) / 1e6
+        return {"raw": raw, "usdc_balance": usdc, "address": client.address}
+    except Exception as exc:
+        return {"error": str(exc)}
+
+
 @app.get("/api/debug/logs")
 def debug_logs(n: int = 50):
     """Return last N lines from event_log.jsonl and execution_log.jsonl."""
