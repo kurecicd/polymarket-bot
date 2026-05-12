@@ -51,14 +51,12 @@ class PolymarketClient:
     def __init__(self, private_key: str, chain_id: int = 137, funder: str | None = None):
         self._private_key = private_key
         self._chain_id = chain_id
-        # signature_type=1 = Magic.link (email login) — required for Polymarket proxy wallet accounts
-        sig_type = 1 if funder else 0
         self._clob = ClobClient(
             host=CLOB_BASE,
             chain_id=chain_id,
             key=private_key,
             funder=funder,
-            signature_type=sig_type,
+            signature_type=2,
         )
         self.address: str = funder or self._clob.get_address()
 
