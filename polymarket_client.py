@@ -48,15 +48,16 @@ def _post_json(url: str, payload: dict, retries: int = 2) -> Any:
 
 
 class PolymarketClient:
-    def __init__(self, private_key: str, chain_id: int = 137):
+    def __init__(self, private_key: str, chain_id: int = 137, funder: str | None = None):
         self._private_key = private_key
         self._chain_id = chain_id
         self._clob = ClobClient(
             host=CLOB_BASE,
             chain_id=chain_id,
             key=private_key,
+            funder=funder,
         )
-        self.address: str = self._clob.get_address()
+        self.address: str = funder or self._clob.get_address()
 
     # ── Auth ──────────────────────────────────────────────────────────────────
 

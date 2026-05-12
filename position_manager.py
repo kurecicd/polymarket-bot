@@ -48,7 +48,8 @@ def _build_client() -> PolymarketClient:
     if not common.has_real_value(private_key):
         raise RuntimeError("POLYMARKET_PRIVATE_KEY is not set in .env")
 
-    client = PolymarketClient(private_key=private_key, chain_id=chain_id)
+    funder = os.getenv("POLYMARKET_FUNDER_ADDRESS", "").strip() or None
+    client = PolymarketClient(private_key=private_key, chain_id=chain_id, funder=funder)
     if common.has_real_value(api_key):
         client.set_api_credentials(api_key, api_secret, api_passphrase)
     else:

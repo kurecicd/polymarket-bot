@@ -48,7 +48,8 @@ def _build_client() -> PolymarketClient:
     api_passphrase = os.getenv("POLYMARKET_API_PASSPHRASE", "").strip()
     if not common.has_real_value(key):
         raise RuntimeError("POLYMARKET_PRIVATE_KEY not set")
-    client = PolymarketClient(private_key=key, chain_id=chain_id)
+    funder = os.getenv("POLYMARKET_FUNDER_ADDRESS", "").strip() or None
+    client = PolymarketClient(private_key=key, chain_id=chain_id, funder=funder)
     if common.has_real_value(api_key):
         client.set_api_credentials(api_key, api_secret, api_passphrase)
     else:

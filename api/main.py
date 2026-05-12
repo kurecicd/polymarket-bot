@@ -124,12 +124,13 @@ def debug_balance():
     try:
         from polymarket_client import PolymarketClient
         from py_clob_client.clob_types import BalanceAllowanceParams, AssetType
-        client = PolymarketClient(private_key=key)
+        funder = _os.getenv("POLYMARKET_FUNDER_ADDRESS", "").strip() or None
+        client = PolymarketClient(private_key=key, funder=funder)
         creds = client.derive_api_key()
         client.set_api_credentials(creds["api_key"], creds["api_secret"], creds["api_passphrase"])
         raw = client._clob.get_balance_allowance(params=BalanceAllowanceParams(asset_type=AssetType.COLLATERAL))
         usdc = float(raw.get("balance", 0)) / 1e6
-        return {"raw": raw, "usdc_balance": usdc, "address": client.address}
+        return {"raw": raw, "usdc_balance": usdc, "address": client.address, "funder": funder}
     except Exception as exc:
         return {"error": str(exc)}
 
