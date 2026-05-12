@@ -138,6 +138,14 @@ def find_opportunities(client: PolymarketClient) -> list[dict]:
         if yes_price <= 0.02 or yes_price >= 0.98:
             continue  # Skip near-certain outcomes
 
+        # Skip neg-risk markets — require different order type, handle separately
+        try:
+            neg_risk_resp = _get(f"{CLOB_BASE}/neg-risk", params={"token_id": yes_token_id})
+            if neg_risk_resp.get("neg_risk"):
+                continue
+        except Exception:
+            pass
+
         try:
             book = client.get_book(yes_token_id)
         except RuntimeError:
