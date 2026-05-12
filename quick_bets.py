@@ -205,14 +205,15 @@ def run(execute: bool = False) -> None:
         log.info("No quick bet opportunities found.")
         return
 
-    # Use fixed trade size if configured, otherwise fall back to % of CLOB balance
-    fixed_size = float(os.getenv("POLYMARKET_TRADE_SIZE_USDC", "0"))
-    if fixed_size > 0:
-        usdc_balance = fixed_size / QUICK_BET_SIZE_PCT  # back-calculate so size_usdc = fixed_size
+    # POLYMARKET_CAPITAL = total capital in USD (set manually in Railway env vars)
+    # Falls back to CLOB balance, then to 10k for dry-run
+    capital = float(os.getenv("POLYMARKET_CAPITAL", "0"))
+    if capital > 0:
+        usdc_balance = capital
     elif execute:
         usdc_balance = client.get_usdc_balance()
         if usdc_balance < 1.0:
-            log.warning(f"CLOB balance $0 — set POLYMARKET_TRADE_SIZE_USDC env var to a fixed bet size (e.g. 5)")
+            log.warning("Balance $0 — set POLYMARKET_CAPITAL env var to your Polymarket cash balance")
             return
     else:
         usdc_balance = 10_000.0

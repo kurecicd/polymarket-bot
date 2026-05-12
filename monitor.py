@@ -152,18 +152,21 @@ def _execute_copy_trade(
         log.warning(f"Invalid entry price {entry_price} — skip")
         return
 
-    fixed_size = float(os.getenv("POLYMARKET_TRADE_SIZE_USDC", "0"))
-    if fixed_size > 0:
-        size_usdc = min(fixed_size, whale_usdc)
+    capital = float(os.getenv("POLYMARKET_CAPITAL", "0"))
+    if capital > 0:
+        usdc_balance = capital
     elif execute:
         usdc_balance = client.get_usdc_balance()
-        size_usdc = min(usdc_balance * POSITION_PCT, whale_usdc)
+        if usdc_balance < 1.0:
+            log.warning("Balance $0 — set POLYMARKET_CAPITAL env var to your Polymarket cash balance")
+            return
     else:
-        size_usdc = min(10_000.0 * POSITION_PCT, whale_usdc)
+        usdc_balance = 10_000.0
+    size_usdc = min(usdc_balance * POSITION_PCT, whale_usdc)
     size_usdc = round(size_usdc, 2)
 
     if size_usdc < 1.0:
-        log.warning(f"Position size ${size_usdc:.2f} too small — set POLYMARKET_TRADE_SIZE_USDC env var")
+        log.warning(f"Position size ${size_usdc:.2f} too small — set POLYMARKET_CAPITAL env var")
         return
 
     size_shares = round(size_usdc / entry_price, 4)
