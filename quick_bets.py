@@ -205,18 +205,17 @@ def run(execute: bool = False) -> None:
         log.info("No quick bet opportunities found.")
         return
 
-    # POLYMARKET_CAPITAL = total capital in USD (set manually in Railway env vars)
-    # Falls back to CLOB balance, then to 10k for dry-run
-    capital = float(os.getenv("POLYMARKET_CAPITAL", "0"))
+    capital = common.get_capital()
     if capital > 0:
         usdc_balance = capital
     elif execute:
         usdc_balance = client.get_usdc_balance()
         if usdc_balance < 1.0:
-            log.warning("Balance $0 — set POLYMARKET_CAPITAL env var to your Polymarket cash balance")
+            log.warning("Capital not set — use dashboard to set your Polymarket balance")
             return
     else:
         usdc_balance = 10_000.0
+    log.info(f"Capital: ${usdc_balance:.2f} | bet size: ${usdc_balance * QUICK_BET_SIZE_PCT:.2f}")
     bets_placed = 0
 
     for opp in opportunities[:5]:  # check top 5, place up to daily limit

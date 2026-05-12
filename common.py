@@ -83,6 +83,31 @@ def log_event(script: str, run_id: str, event_type: str, **details: Any) -> None
     )
 
 
+def get_capital() -> float:
+    """Return configured trading capital — reads live from state file, no redeploy needed."""
+    # Env var takes precedence (Railway variable)
+    env_val = float(os.getenv("POLYMARKET_CAPITAL", "0"))
+    if env_val > 0:
+        return env_val
+    # Fall back to value stored in execution state (updatable via API without redeploy)
+    try:
+        state = read_json(EXECUTION_STATE_PATH)
+        return float(state.get("capital", 0))
+    except Exception:
+        return 0.0
+
+
+def set_capital(amount: float) -> None:
+    """Update capital in state file — takes effect immediately, no redeploy needed."""
+    EXECUTION_STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    if EXECUTION_STATE_PATH.exists():
+        state = read_json(EXECUTION_STATE_PATH)
+    else:
+        state = {}
+    state["capital"] = amount
+    write_json(EXECUTION_STATE_PATH, state)
+
+
 def load_execution_state() -> dict[str, Any]:
     if not EXECUTION_STATE_PATH.exists():
         return {

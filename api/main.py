@@ -194,6 +194,19 @@ def run_quick_bets_debug(execute: bool = False):
     return _last_qb_output
 
 
+@app.get("/api/capital")
+def get_capital():
+    return {"capital": common.get_capital()}
+
+@app.post("/api/capital/{amount}")
+def set_capital(amount: float):
+    """Set trading capital without redeploying. Bot uses 2% of this per trade."""
+    if amount < 0:
+        return {"error": "amount must be >= 0"}
+    common.set_capital(amount)
+    return {"capital": amount, "bet_size_2pct": round(amount * 0.02, 2)}
+
+
 @app.post("/api/mode/{mode}")
 def set_mode(mode: str):
     """Switch between dry_run and execute mode. Persists across restarts."""
