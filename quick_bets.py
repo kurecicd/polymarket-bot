@@ -141,12 +141,16 @@ def find_opportunities(client: PolymarketClient) -> list[dict]:
         # Skip neg-risk markets — require different order type
         try:
             import requests as _req
-            nr = _req.get(
-                "https://clob.polymarket.com/neg-risk",
-                params={"token_id": yes_token_id}, timeout=4
-            ).json()
-            if nr.get("neg_risk"):
-                continue
+            for _tid in [yes_token_id] + ([no_token_id] if no_token_id else []):
+                nr = _req.get(
+                    "https://clob.polymarket.com/neg-risk",
+                    params={"token_id": _tid}, timeout=4
+                ).json()
+                log.debug(f"neg-risk {_tid[:12]}: {nr}")
+                if nr.get("neg_risk") or nr.get("negRisk"):
+                    raise StopIteration
+        except StopIteration:
+            continue
         except Exception:
             pass
 
