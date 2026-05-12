@@ -205,10 +205,14 @@ def run(execute: bool = False) -> None:
         log.info("No quick bet opportunities found.")
         return
 
-    if execute:
+    # Use fixed trade size if configured, otherwise fall back to % of CLOB balance
+    fixed_size = float(os.getenv("POLYMARKET_TRADE_SIZE_USDC", "0"))
+    if fixed_size > 0:
+        usdc_balance = fixed_size / QUICK_BET_SIZE_PCT  # back-calculate so size_usdc = fixed_size
+    elif execute:
         usdc_balance = client.get_usdc_balance()
         if usdc_balance < 1.0:
-            log.warning(f"CLOB balance too low (${usdc_balance:.2f}) — deposit USDC via Polymarket UI or check private key matches your trading wallet")
+            log.warning(f"CLOB balance $0 — set POLYMARKET_TRADE_SIZE_USDC env var to a fixed bet size (e.g. 5)")
             return
     else:
         usdc_balance = 10_000.0
