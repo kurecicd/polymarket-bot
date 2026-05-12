@@ -221,7 +221,28 @@ class PolymarketClient:
             size=size_shares,
             side=side,
         )
-        signed_order = self._clob.create_order(order_args)
+        # Check if neg-risk market — use NegRiskOrderArgs if available
+        try:
+            neg_risk = _get(f"{CLOB_BASE}/neg-risk", params={"token_id": token_id})
+            is_neg_risk = neg_risk.get("neg_risk", False)
+        except Exception:
+            is_neg_risk = False
+
+        if is_neg_risk:
+            try:
+                from py_clob_client.clob_types import NegRiskOrderArgs
+                neg_args = NegRiskOrderArgs(
+                    token_id=token_id,
+                    price=price,
+                    size=size_shares,
+                    side=side,
+                )
+                signed_order = self._clob.create_order(neg_args)
+            except ImportError:
+                signed_order = self._clob.create_order(order_args)
+        else:
+            signed_order = self._clob.create_order(order_args)
+
         resp = self._clob.post_order(signed_order, OrderType.GTC)
         return resp if isinstance(resp, dict) else {"order_id": str(resp)}
 
