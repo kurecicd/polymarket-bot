@@ -118,7 +118,7 @@ def debug_balance():
     """Show raw balance-allowance response to diagnose $0 balance issue."""
     import os as _os
     common.load_env()
-    key = _os.getenv("POLYMARKET_PRIVATE_KEY", "").strip()
+    key = _os.getenv("POLYMARKET_PRIVATE_KEY", "").strip().removeprefix("0x")
     if not key:
         return {"error": "POLYMARKET_PRIVATE_KEY not set"}
     try:
