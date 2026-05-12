@@ -56,7 +56,7 @@ class PolymarketClient:
             chain_id=chain_id,
             key=private_key,
             funder=funder,
-            signature_type=2,
+            signature_type=0,
         )
         self.address: str = funder or self._clob.get_address()
 
