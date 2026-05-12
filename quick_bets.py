@@ -138,10 +138,14 @@ def find_opportunities(client: PolymarketClient) -> list[dict]:
         if yes_price <= 0.02 or yes_price >= 0.98:
             continue  # Skip near-certain outcomes
 
-        # Skip neg-risk markets — require different order type, handle separately
+        # Skip neg-risk markets — require different order type
         try:
-            neg_risk_resp = _get(f"{CLOB_BASE}/neg-risk", params={"token_id": yes_token_id})
-            if neg_risk_resp.get("neg_risk"):
+            import requests as _req
+            nr = _req.get(
+                "https://clob.polymarket.com/neg-risk",
+                params={"token_id": yes_token_id}, timeout=4
+            ).json()
+            if nr.get("neg_risk"):
                 continue
         except Exception:
             pass
