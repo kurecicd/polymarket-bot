@@ -115,7 +115,7 @@ def debug_monitor():
 
 @app.get("/api/debug/balance")
 def debug_balance():
-    """Show raw balance-allowance response to diagnose $0 balance issue."""
+    """Show wallet address and live USDC balance from Polygon blockchain."""
     import os as _os
     common.load_env()
     key = _os.getenv("POLYMARKET_PRIVATE_KEY", "").strip().removeprefix("0x")
@@ -123,14 +123,10 @@ def debug_balance():
         return {"error": "POLYMARKET_PRIVATE_KEY not set"}
     try:
         from polymarket_client import PolymarketClient
-        from py_clob_client.clob_types import BalanceAllowanceParams, AssetType
         funder = _os.getenv("POLYMARKET_FUNDER_ADDRESS", "").strip() or None
         client = PolymarketClient(private_key=key, funder=funder)
-        creds = client.derive_api_key()
-        client.set_api_credentials(creds["api_key"], creds["api_secret"], creds["api_passphrase"])
-        raw = client._clob.get_balance_allowance(params=BalanceAllowanceParams(asset_type=AssetType.COLLATERAL))
-        usdc = float(raw.get("balance", 0)) / 1e6
-        return {"raw": raw, "usdc_balance": usdc, "address": client.address, "funder": funder}
+        usdc = client.get_usdc_balance()
+        return {"address": client.address, "usdc_balance": usdc, "funder": funder}
     except Exception as exc:
         return {"error": str(exc)}
 
