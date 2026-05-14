@@ -207,7 +207,17 @@ def debug_register_wallet():
         }
         signed = acct.sign_transaction(tx)
         tx_hash = rpc("eth_sendRawTransaction", ["0x" + signed.raw_transaction.hex()])
-        return {"address": address, "status": "approved", "tx_hash": tx_hash}
+
+        # Also ping Polymarket backend to register the wallet
+        from polymarket_client import PolymarketClient
+        from py_clob_client_v2.clob_types import BalanceAllowanceParams, AssetType
+        client = PolymarketClient(private_key=key)
+        creds = client.create_or_derive_api_key()
+        client.set_api_credentials(creds["api_key"], creds["api_secret"], creds["api_passphrase"])
+        update_result = client._clob.update_balance_allowance(
+            params=BalanceAllowanceParams(asset_type=AssetType.COLLATERAL)
+        )
+        return {"address": address, "status": "approved", "tx_hash": tx_hash, "backend_update": update_result}
     except Exception as exc:
         return {"error": str(exc)}
 
