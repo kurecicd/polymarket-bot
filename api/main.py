@@ -169,18 +169,39 @@ def clear_simulated_positions():
 
 @app.get("/api/debug/register-wallet")
 def debug_register_wallet():
-    """Call balance-allowance/update to register wallet with CLOB v2."""
+    """Approve USDC for CLOB exchange on-chain + update balance allowance."""
     import os as _os
     common.load_env()
     try:
-        from polymarket_client import PolymarketClient
+        from web3 import Web3
+        from eth_account import Account
+
         key = common.get_private_key()
-        funder = _os.getenv("POLYMARKET_FUNDER_ADDRESS", "").strip() or None
-        client = PolymarketClient(private_key=key, funder=funder)
-        creds = client.create_or_derive_api_key()
-        client.set_api_credentials(creds["api_key"], creds["api_secret"], creds["api_passphrase"])
-        result = client._clob.update_balance_allowance()
-        return {"address": client.address, "result": result}
+        w3 = Web3(Web3.HTTPProvider("https://polygon-bor-rpc.publicnode.com"))
+        account = Account.from_key("0x" + key)
+        address = account.address
+
+        USDC = "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359"
+        CLOB_EXCHANGE = "0x4bFb41d5B3570DeFd03C39a9A4D8dE6Bd8B8982E"
+        MAX = 2**256 - 1
+
+        usdc = w3.eth.contract(
+            address=Web3.to_checksum_address(USDC),
+            abi=[{"inputs":[{"name":"spender","type":"address"},{"name":"amount","type":"uint256"}],"name":"approve","outputs":[{"name":"","type":"bool"}],"stateMutability":"nonpayable","type":"function"}]
+        )
+        current_allowance = w3.eth.call({"to": USDC, "data": "0xdd62ed3e" + "0"*24 + address[2:].lower() + "0"*24 + CLOB_EXCHANGE[2:].lower()})
+        allowance = int(current_allowance.hex(), 16)
+
+        if allowance > 10**6:
+            return {"address": address, "status": "already_approved", "allowance_usdc": allowance / 1e6}
+
+        nonce = w3.eth.get_transaction_count(address)
+        tx = usdc.functions.approve(
+            Web3.to_checksum_address(CLOB_EXCHANGE), MAX
+        ).build_transaction({"from": address, "nonce": nonce, "gas": 100000, "chainId": 137})
+        signed = w3.eth.account.sign_transaction(tx, "0x" + key)
+        tx_hash = w3.eth.send_raw_transaction(signed.raw_transaction)
+        return {"address": address, "status": "approved", "tx_hash": tx_hash.hex()}
     except Exception as exc:
         return {"error": str(exc)}
 
