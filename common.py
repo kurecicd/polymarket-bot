@@ -45,6 +45,15 @@ def has_real_value(value: str | None) -> bool:
     return bool(value and value.strip() and value.strip() not in PLACEHOLDER_VALUES)
 
 
+def get_private_key() -> str:
+    """Read private key from POLYMARKET_PRIVATE_KEY, POLYMARKET_PRIVATE_KEY_RABBY, or POLYMARKET_PRIVATE_KEY_POLY — whichever is set."""
+    for var in ("POLYMARKET_PRIVATE_KEY", "POLYMARKET_PRIVATE_KEY_RABBY", "POLYMARKET_PRIVATE_KEY_POLY"):
+        val = os.getenv(var, "").strip().removeprefix("0x")
+        if has_real_value(val):
+            return val
+    raise RuntimeError("No private key found — set POLYMARKET_PRIVATE_KEY, POLYMARKET_PRIVATE_KEY_RABBY or POLYMARKET_PRIVATE_KEY_POLY in Railway")
+
+
 def iso_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 

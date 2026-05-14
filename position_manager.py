@@ -39,7 +39,7 @@ log = logging.getLogger("position_manager")
 
 def _build_client() -> PolymarketClient:
     common.load_env()
-    private_key = os.getenv("POLYMARKET_PRIVATE_KEY", "").strip().removeprefix("0x")
+    private_key = common.get_private_key()
     chain_id = int(os.getenv("POLYMARKET_CHAIN_ID", "137"))
     api_key = os.getenv("POLYMARKET_API_KEY", "").strip()
     api_secret = os.getenv("POLYMARKET_API_SECRET", "").strip()

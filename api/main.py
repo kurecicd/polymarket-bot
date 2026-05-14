@@ -118,7 +118,7 @@ def debug_balance():
     """Show wallet address and live USDC balance from Polygon blockchain."""
     import os as _os
     common.load_env()
-    key = _os.getenv("POLYMARKET_PRIVATE_KEY", "").strip().removeprefix("0x")
+    key = common.get_private_key()
     if not key:
         return {"error": "POLYMARKET_PRIVATE_KEY not set"}
     try:
@@ -172,7 +172,7 @@ def debug_test_order():
     """Place a minimal test order and return the raw signed order + response."""
     import os as _os, json as _json
     common.load_env()
-    key = _os.getenv("POLYMARKET_PRIVATE_KEY", "").strip().removeprefix("0x")
+    key = common.get_private_key()
     if not key:
         return {"error": "POLYMARKET_PRIVATE_KEY not set"}
     try:
