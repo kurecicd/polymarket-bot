@@ -178,6 +178,8 @@ def debug_register_wallet():
 
         key = common.get_private_key()
         w3 = Web3(Web3.HTTPProvider("https://polygon-bor-rpc.publicnode.com"))
+        from web3.middleware import ExtraDataToPOAMiddleware
+        w3.middleware_onion.inject(ExtraDataToPOAMiddleware, layer=0)
         account = Account.from_key("0x" + key)
         address = account.address
 
