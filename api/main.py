@@ -191,24 +191,16 @@ def debug_register_wallet():
         # Check current allowance
         allow_data = "0xdd62ed3e" + "000000000000000000000000" + address[2:].lower() + "000000000000000000000000" + CLOB[2:].lower()
         allowance = int(rpc("eth_call", [{"to": USDC, "data": allow_data}, "latest"]) or "0x0", 16) / 1e6
-        if allowance > 1:
-            return {"address": address, "status": "already_approved", "allowance_usdc": allowance}
+        tx_hash = None
+        if not already_approved:
+            approve_data = "0x095ea7b3" + "000000000000000000000000" + CLOB[2:].lower() + "f" * 64
+            nonce = int(rpc("eth_getTransactionCount", [address, "latest"]) or "0x0", 16)
+            gas_price = int(rpc("eth_gasPrice", []) or "0x0", 16)
+            tx = {"nonce": nonce, "gasPrice": gas_price, "gas": 100000, "to": USDC, "value": 0, "data": approve_data, "chainId": 137}
+            signed = acct.sign_transaction(tx)
+            tx_hash = rpc("eth_sendRawTransaction", ["0x" + signed.raw_transaction.hex()])
 
-        # Build approve(CLOB, MAX_UINT256) calldata
-        approve_data = "0x095ea7b3" + "000000000000000000000000" + CLOB[2:].lower() + "f" * 64
-
-        nonce = int(rpc("eth_getTransactionCount", [address, "latest"]) or "0x0", 16)
-        gas_price = int(rpc("eth_gasPrice", []) or "0x0", 16)
-
-        from eth_account._utils.legacy_transactions import serializable_unsigned_transaction_from_dict
-        tx = {
-            "nonce": nonce, "gasPrice": gas_price, "gas": 100000,
-            "to": USDC, "value": 0, "data": approve_data, "chainId": 137,
-        }
-        signed = acct.sign_transaction(tx)
-        tx_hash = rpc("eth_sendRawTransaction", ["0x" + signed.raw_transaction.hex()])
-
-        # Also ping Polymarket backend to register the wallet
+        # Always ping Polymarket backend to register the wallet
         from polymarket_client import PolymarketClient
         from py_clob_client_v2.clob_types import BalanceAllowanceParams, AssetType
         client = PolymarketClient(private_key=key)
@@ -217,7 +209,7 @@ def debug_register_wallet():
         update_result = client._clob.update_balance_allowance(
             params=BalanceAllowanceParams(asset_type=AssetType.COLLATERAL)
         )
-        return {"address": address, "status": "approved", "tx_hash": tx_hash, "backend_update": update_result}
+        return {"address": address, "allowance_usdc": allowance, "tx_hash": tx_hash, "backend_update": update_result}
     except Exception as exc:
         return {"error": str(exc)}
 
