@@ -83,7 +83,7 @@ class PolymarketClient:
 
     def get_usdc_balance(self) -> float:
         """Returns USDC balance by reading directly from Polygon blockchain."""
-        USDC_CONTRACT = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"
+        USDC_CONTRACT = "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359"  # native USDC (Polymarket uses this)
         POLYGON_RPC = "https://polygon-bor-rpc.publicnode.com"
         # balanceOf(address) selector + padded address
         data = "0x70a08231" + "000000000000000000000000" + self.address.lower().removeprefix("0x")
