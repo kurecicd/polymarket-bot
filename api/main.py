@@ -187,25 +187,23 @@ def deploy_deposit_wallet():
         body = _json.dumps({"type": "WALLET-CREATE", "from": owner, "to": FACTORY}, separators=(",", ":"))
 
         from polymarket_client import PolymarketClient
-        # Try 1: builder API credentials
         client = PolymarketClient(private_key=key)
-        client.set_api_credentials(api_key, api_secret, api_passphrase)
-        h1 = client._clob._l2_headers("POST", "/submit", body)
-        h1["Content-Type"] = "application/json"
-        r1 = _req.post(f"{RELAYER}/submit", headers=h1, data=body, timeout=15)
 
-        # Try 2: derived credentials from Rabby key
-        client2 = PolymarketClient(private_key=key)
-        creds = client2.create_or_derive_api_key()
-        client2.set_api_credentials(creds["api_key"], creds["api_secret"], creds["api_passphrase"])
-        h2 = client2._clob._l2_headers("POST", "/submit", body)
-        h2["Content-Type"] = "application/json"
-        r2 = _req.post(f"{RELAYER}/submit", headers=h2, data=body, timeout=15)
+        # Try L1 auth (Ethereum signature)
+        l1_headers = client._clob._l1_headers("POST", "/submit", body)
+        l1_headers["Content-Type"] = "application/json"
+        r1 = _req.post(f"{RELAYER}/submit", headers=l1_headers, data=body, timeout=15)
+
+        # Try L2 auth with builder credentials
+        client.set_api_credentials(api_key, api_secret, api_passphrase)
+        l2_headers = client._clob._l2_headers("POST", "/submit", body)
+        l2_headers["Content-Type"] = "application/json"
+        r2 = _req.post(f"{RELAYER}/submit", headers=l2_headers, data=body, timeout=15)
 
         return {
             "owner": owner,
-            "builder_api_key_result": {"status": r1.status_code, "response": r1.json() if r1.text else {}},
-            "derived_key_result": {"status": r2.status_code, "response": r2.json() if r2.text else {}},
+            "l1_auth": {"status": r1.status_code, "response": r1.json() if r1.text else {}},
+            "l2_auth": {"status": r2.status_code, "response": r2.json() if r2.text else {}},
         }
     except Exception as exc:
         return {"error": str(exc)}
