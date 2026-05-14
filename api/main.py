@@ -169,41 +169,45 @@ def clear_simulated_positions():
 
 @app.get("/api/debug/register-wallet")
 def debug_register_wallet():
-    """Approve USDC for CLOB exchange on-chain + update balance allowance."""
-    import os as _os
+    """Approve USDC for CLOB exchange on-chain using raw JSON-RPC (no web3 middleware issues)."""
+    import os as _os, requests as _req, json as _json
     common.load_env()
     try:
-        from web3 import Web3
         from eth_account import Account
+        from eth_account.messages import encode_defunct
 
         key = common.get_private_key()
-        w3 = Web3(Web3.HTTPProvider("https://polygon-bor-rpc.publicnode.com"))
-        from web3.middleware import ExtraDataToPOAMiddleware
-        w3.middleware_onion.inject(ExtraDataToPOAMiddleware, layer=0)
-        account = Account.from_key("0x" + key)
-        address = account.address
+        acct = Account.from_key("0x" + key)
+        address = acct.address
 
+        RPC = "https://polygon-bor-rpc.publicnode.com"
         USDC = "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359"
-        CLOB_EXCHANGE = "0x4bFb41d5B3570DeFd03C39a9A4D8dE6Bd8B8982E"
-        MAX = 2**256 - 1
+        CLOB = "0x4bFb41d5B3570DeFd03C39a9A4D8dE6Bd8B8982E"
 
-        usdc = w3.eth.contract(
-            address=Web3.to_checksum_address(USDC),
-            abi=[{"inputs":[{"name":"spender","type":"address"},{"name":"amount","type":"uint256"}],"name":"approve","outputs":[{"name":"","type":"bool"}],"stateMutability":"nonpayable","type":"function"}]
-        )
-        current_allowance = w3.eth.call({"to": USDC, "data": "0xdd62ed3e" + "0"*24 + address[2:].lower() + "0"*24 + CLOB_EXCHANGE[2:].lower()})
-        allowance = int(current_allowance.hex(), 16)
+        def rpc(method, params):
+            r = _req.post(RPC, json={"jsonrpc":"2.0","method":method,"params":params,"id":1}, timeout=10)
+            return r.json().get("result")
 
-        if allowance > 10**6:
-            return {"address": address, "status": "already_approved", "allowance_usdc": allowance / 1e6}
+        # Check current allowance
+        allow_data = "0xdd62ed3e" + "000000000000000000000000" + address[2:].lower() + "000000000000000000000000" + CLOB[2:].lower()
+        allowance = int(rpc("eth_call", [{"to": USDC, "data": allow_data}, "latest"]) or "0x0", 16) / 1e6
+        if allowance > 1:
+            return {"address": address, "status": "already_approved", "allowance_usdc": allowance}
 
-        nonce = w3.eth.get_transaction_count(address)
-        tx = usdc.functions.approve(
-            Web3.to_checksum_address(CLOB_EXCHANGE), MAX
-        ).build_transaction({"from": address, "nonce": nonce, "gas": 100000, "chainId": 137})
-        signed = w3.eth.account.sign_transaction(tx, "0x" + key)
-        tx_hash = w3.eth.send_raw_transaction(signed.raw_transaction)
-        return {"address": address, "status": "approved", "tx_hash": tx_hash.hex()}
+        # Build approve(CLOB, MAX_UINT256) calldata
+        approve_data = "0x095ea7b3" + "000000000000000000000000" + CLOB[2:].lower() + "f" * 64
+
+        nonce = int(rpc("eth_getTransactionCount", [address, "latest"]) or "0x0", 16)
+        gas_price = int(rpc("eth_gasPrice", []) or "0x0", 16)
+
+        from eth_account._utils.legacy_transactions import serializable_unsigned_transaction_from_dict
+        tx = {
+            "nonce": nonce, "gasPrice": gas_price, "gas": 100000,
+            "to": USDC, "value": 0, "data": approve_data, "chainId": 137,
+        }
+        signed = acct.sign_transaction(tx)
+        tx_hash = rpc("eth_sendRawTransaction", ["0x" + signed.raw_transaction.hex()])
+        return {"address": address, "status": "approved", "tx_hash": tx_hash}
     except Exception as exc:
         return {"error": str(exc)}
 
