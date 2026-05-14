@@ -191,6 +191,7 @@ def debug_register_wallet():
         # Check current allowance
         allow_data = "0xdd62ed3e" + "000000000000000000000000" + address[2:].lower() + "000000000000000000000000" + CLOB[2:].lower()
         allowance = int(rpc("eth_call", [{"to": USDC, "data": allow_data}, "latest"]) or "0x0", 16) / 1e6
+        already_approved = allowance > 1
         tx_hash = None
         if not already_approved:
             approve_data = "0x095ea7b3" + "000000000000000000000000" + CLOB[2:].lower() + "f" * 64
