@@ -83,13 +83,19 @@ def log_event(script: str, run_id: str, event_type: str, **details: Any) -> None
     )
 
 
-def get_capital() -> float:
-    """Return configured trading capital — reads live from state file, no redeploy needed."""
-    # Env var takes precedence (Railway variable)
+def get_capital(client=None) -> float:
+    """Return live USDC balance from blockchain. Falls back to env/state if client not provided."""
+    if client is not None:
+        try:
+            bal = client.get_usdc_balance()
+            if bal > 0:
+                return bal
+        except Exception:
+            pass
+    # Env var override (useful for testing)
     env_val = float(os.getenv("POLYMARKET_CAPITAL", "0"))
     if env_val > 0:
         return env_val
-    # Fall back to value stored in execution state (updatable via API without redeploy)
     try:
         state = read_json(EXECUTION_STATE_PATH)
         return float(state.get("capital", 0))

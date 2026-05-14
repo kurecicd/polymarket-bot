@@ -221,16 +221,10 @@ def run(execute: bool = False) -> None:
         log.info("No quick bet opportunities found.")
         return
 
-    capital = common.get_capital()
-    if capital > 0:
-        usdc_balance = capital
-    elif execute:
-        usdc_balance = client.get_usdc_balance()
-        if usdc_balance < 1.0:
-            log.warning("Capital not set — use dashboard to set your Polymarket balance")
-            return
-    else:
-        usdc_balance = 10_000.0
+    usdc_balance = common.get_capital(client) if execute else 10_000.0
+    if execute and usdc_balance < 1.0:
+        log.warning("USDC balance too low — check wallet has funds on Polygon")
+        return
     log.info(f"Capital: ${usdc_balance:.2f} | bet size: ${usdc_balance * QUICK_BET_SIZE_PCT:.2f}")
     bets_placed = 0
 

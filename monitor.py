@@ -152,21 +152,15 @@ def _execute_copy_trade(
         log.warning(f"Invalid entry price {entry_price} — skip")
         return
 
-    capital = common.get_capital()
-    if capital > 0:
-        usdc_balance = capital
-    elif execute:
-        usdc_balance = client.get_usdc_balance()
-        if usdc_balance < 1.0:
-            log.warning("Capital not set — use dashboard to set your Polymarket balance")
-            return
-    else:
-        usdc_balance = 10_000.0
+    usdc_balance = common.get_capital(client) if execute else 10_000.0
+    if execute and usdc_balance < 1.0:
+        log.warning("USDC balance too low — check wallet has funds on Polygon")
+        return
     size_usdc = min(usdc_balance * POSITION_PCT, whale_usdc)
     size_usdc = round(size_usdc, 2)
 
     if size_usdc < 1.0:
-        log.warning(f"Position size ${size_usdc:.2f} too small — set POLYMARKET_CAPITAL env var")
+        log.warning(f"Position size ${size_usdc:.2f} too small")
         return
 
     size_shares = round(size_usdc / entry_price, 4)

@@ -56,7 +56,7 @@ class PolymarketClient:
             chain_id=chain_id,
             key=private_key,
             funder=funder,
-            signature_type=0,
+            signature_type=1 if funder else 0,
         )
         self.address: str = funder or self._clob.get_address()
 
@@ -82,16 +82,21 @@ class PolymarketClient:
     # ── Account ───────────────────────────────────────────────────────────────
 
     def get_usdc_balance(self) -> float:
-        """Returns USDC balance available for trading (in USD, not wei)."""
+        """Returns USDC balance by reading directly from Polygon blockchain."""
+        USDC_CONTRACT = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"
+        POLYGON_RPC = "https://polygon-bor-rpc.publicnode.com"
+        # balanceOf(address) selector + padded address
+        data = "0x70a08231" + "000000000000000000000000" + self.address.lower().removeprefix("0x")
         try:
-            from py_clob_client.clob_types import BalanceAllowanceParams, AssetType
-            data = self._clob.get_balance_allowance(
-                params=BalanceAllowanceParams(asset_type=AssetType.COLLATERAL)
-            )
-        except (ImportError, TypeError):
-            # Fallback for different py_clob_client versions
-            data = self._clob.get_balance_allowance()
-        return float(data.get("balance", 0)) / 1e6
+            resp = _SESSION.post(POLYGON_RPC, json={
+                "jsonrpc": "2.0", "method": "eth_call",
+                "params": [{"to": USDC_CONTRACT, "data": data}, "latest"],
+                "id": 1,
+            }, timeout=8)
+            result = resp.json().get("result", "0x0")
+            return int(result, 16) / 1e6
+        except Exception:
+            return 0.0
 
     # ── Market data ───────────────────────────────────────────────────────────
 
