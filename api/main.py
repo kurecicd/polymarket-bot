@@ -167,6 +167,24 @@ def clear_simulated_positions():
     return {"removed": before - after, "remaining": after}
 
 
+@app.get("/api/debug/register-wallet")
+def debug_register_wallet():
+    """Call balance-allowance/update to register wallet with CLOB v2."""
+    import os as _os
+    common.load_env()
+    try:
+        from polymarket_client import PolymarketClient
+        key = common.get_private_key()
+        funder = _os.getenv("POLYMARKET_FUNDER_ADDRESS", "").strip() or None
+        client = PolymarketClient(private_key=key, funder=funder)
+        creds = client.create_or_derive_api_key()
+        client.set_api_credentials(creds["api_key"], creds["api_secret"], creds["api_passphrase"])
+        result = client._clob.update_balance_allowance()
+        return {"address": client.address, "result": result}
+    except Exception as exc:
+        return {"error": str(exc)}
+
+
 @app.get("/api/debug/test-order")
 def debug_test_order():
     """Place a minimal test order and return the raw signed order + response."""
