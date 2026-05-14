@@ -113,6 +113,7 @@ export interface Whale {
   total_trades: number;
   roi_pct: number;
   volume_30d_usdc?: number;
+  resolved_trades?: number;
 }
 
 export interface ActivityEvent {
