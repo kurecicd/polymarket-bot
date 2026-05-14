@@ -178,7 +178,8 @@ def debug_test_order():
     try:
         from polymarket_client import PolymarketClient
         from py_clob_client_v2.clob_types import OrderArgs, OrderType
-        client = PolymarketClient(private_key=key)
+        funder = _os.getenv("POLYMARKET_FUNDER_ADDRESS", "").strip() or None
+        client = PolymarketClient(private_key=key, funder=funder)
         creds = client.create_or_derive_api_key()
         client.set_api_credentials(creds["api_key"], creds["api_secret"], creds["api_passphrase"])
         # Use the Bitcoin/GTA VI market NO token
