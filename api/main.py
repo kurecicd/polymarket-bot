@@ -167,6 +167,35 @@ def clear_simulated_positions():
     return {"removed": before - after, "remaining": after}
 
 
+@app.get("/api/debug/test-order")
+def debug_test_order():
+    """Place a minimal test order and return the raw signed order + response."""
+    import os as _os, json as _json
+    common.load_env()
+    key = _os.getenv("POLYMARKET_PRIVATE_KEY", "").strip().removeprefix("0x")
+    if not key:
+        return {"error": "POLYMARKET_PRIVATE_KEY not set"}
+    try:
+        from polymarket_client import PolymarketClient
+        from py_clob_client.clob_types import OrderArgs, OrderType
+        client = PolymarketClient(private_key=key)
+        creds = client.create_or_derive_api_key()
+        client.set_api_credentials(creds["api_key"], creds["api_secret"], creds["api_passphrase"])
+        # Use the Bitcoin/GTA VI market NO token
+        token_id = "91863162118308663069733924043159186005106558783397508844234610341221325526200"
+        order_args = OrderArgs(token_id=token_id, price=0.5, size=2.0, side="BUY")
+        signed = client._clob.create_order(order_args)
+        signed_dict = signed.__dict__ if hasattr(signed, '__dict__') else str(signed)
+        # Try to post and capture full response
+        import requests as _req
+        headers = client._clob._build_l2_headers(method="POST", request_path="/order")
+        payload = {"order": signed_dict, "owner": client.address, "orderType": "GTC"}
+        resp = _req.post("https://clob.polymarket.com/order", json=payload, headers=headers, timeout=10)
+        return {"signed_order": signed_dict, "response_status": resp.status_code, "response": resp.json()}
+    except Exception as exc:
+        return {"error": str(exc), "type": type(exc).__name__}
+
+
 _last_qb_output: dict = {"stdout": "", "stderr": "", "returncode": None, "ran_at": None}
 
 @app.post("/api/debug/run-quick-bets")
