@@ -186,22 +186,16 @@ def deploy_deposit_wallet():
         RELAYER = "https://relayer-v2.polymarket.com"
         body = _json.dumps({"type": "WALLET-CREATE", "from": owner, "to": FACTORY}, separators=(",", ":"))
 
-        timestamp = str(int(_time.time()))
-        message = timestamp + "POST" + "/submit" + body
-        signature = _b64.b64encode(
-            _hmac.new(api_secret.encode(), message.encode(), _hashlib.sha256).digest()
-        ).decode()
+        # Use py_clob_client_v2 built-in L2 header generation
+        from polymarket_client import PolymarketClient
+        from py_clob_client_v2.clob_types import ApiCreds
+        client = PolymarketClient(private_key=key)
+        client.set_api_credentials(api_key, api_secret, api_passphrase)
+        headers = client._clob._l2_headers("POST", "/submit", body)
+        headers["Content-Type"] = "application/json"
 
-        headers = {
-            "Content-Type": "application/json",
-            "POLY-ADDRESS": owner,
-            "POLY-API-KEY": api_key,
-            "POLY-SIGNATURE": signature,
-            "POLY-TIMESTAMP": timestamp,
-            "POLY-PASSPHRASE": _b64.b64encode(api_passphrase.encode()).decode(),
-        }
         r = _req.post(f"{RELAYER}/submit", headers=headers, data=body, timeout=15)
-        return {"status": r.status_code, "response": r.json() if r.text else {}, "owner": owner}
+        return {"status": r.status_code, "response": r.json() if r.text else {}, "owner": owner, "headers_used": list(headers.keys())}
     except Exception as exc:
         return {"error": str(exc)}
 
