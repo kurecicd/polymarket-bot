@@ -47,7 +47,7 @@ def has_real_value(value: str | None) -> bool:
 
 def get_private_key() -> str:
     """Read private key from POLYMARKET_PRIVATE_KEY, POLYMARKET_PRIVATE_KEY_RABBY, or POLYMARKET_PRIVATE_KEY_POLY — whichever is set."""
-    for var in ("POLYMARKET_PRIVATE_KEY", "POLYMARKET_PRIVATE_KEY_RABBY", "POLYMARKET_PRIVATE_KEY_POLY"):
+    for var in ("POLYMARKET_PRIVATE_KEY", "POLYMARKET_PRIVATE_KEY_POLY", "POLYMARKET_PRIVATE_KEY_RABBY"):
         val = os.getenv(var, "").strip().removeprefix("0x")
         if has_real_value(val):
             return val
