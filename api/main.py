@@ -185,13 +185,15 @@ def debug_test_order():
         token_id = "91863162118308663069733924043159186005106558783397508844234610341221325526200"
         order_args = OrderArgs(token_id=token_id, price=0.5, size=2.0, side="BUY")
         signed = client._clob.create_order(order_args)
-        signed_dict = signed.__dict__ if hasattr(signed, '__dict__') else str(signed)
-        # Try to post and capture full response
-        import requests as _req
-        headers = client._clob._build_l2_headers(method="POST", request_path="/order")
-        payload = {"order": signed_dict, "owner": client.address, "orderType": "GTC"}
-        resp = _req.post("https://clob.polymarket.com/order", json=payload, headers=headers, timeout=10)
-        return {"signed_order": signed_dict, "response_status": resp.status_code, "response": resp.json()}
+        # Serialize order
+        import dataclasses as _dc
+        signed_dict = _dc.asdict(signed) if _dc.is_dataclass(signed) else signed.__dict__ if hasattr(signed, '__dict__') else {"str": str(signed)}
+        # Post through client normally and capture result
+        try:
+            resp = client._clob.post_order(signed, OrderType.GTC)
+            return {"signed_order": signed_dict, "response": resp}
+        except Exception as post_exc:
+            return {"signed_order": signed_dict, "post_error": str(post_exc)}
     except Exception as exc:
         return {"error": str(exc), "type": type(exc).__name__}
 
