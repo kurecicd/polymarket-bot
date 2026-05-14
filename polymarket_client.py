@@ -63,13 +63,16 @@ class PolymarketClient:
     # ── Auth ──────────────────────────────────────────────────────────────────
 
     def derive_api_key(self) -> dict[str, str]:
-        """Call once, store returned key/secret/passphrase in .env."""
         resp = self._clob.derive_api_key()
-        return {
-            "api_key": resp.api_key,
-            "api_secret": resp.api_secret,
-            "api_passphrase": resp.api_passphrase,
-        }
+        return {"api_key": resp.api_key, "api_secret": resp.api_secret, "api_passphrase": resp.api_passphrase}
+
+    def create_or_derive_api_key(self) -> dict[str, str]:
+        """Create API key if new wallet, derive if existing. Safe for fresh wallets."""
+        try:
+            resp = self._clob.create_or_derive_api_creds()
+        except Exception:
+            resp = self._clob.derive_api_key()
+        return {"api_key": resp.api_key, "api_secret": resp.api_secret, "api_passphrase": resp.api_passphrase}
 
     def set_api_credentials(self, api_key: str, api_secret: str, api_passphrase: str) -> None:
         from py_clob_client.clob_types import ApiCreds
