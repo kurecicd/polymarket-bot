@@ -48,15 +48,20 @@ def _post_json(url: str, payload: dict, retries: int = 2) -> Any:
 
 
 class PolymarketClient:
-    def __init__(self, private_key: str, chain_id: int = 137, funder: str | None = None):
+    def __init__(self, private_key: str, chain_id: int = 137, funder: str | None = None, builder_code: str | None = None):
         self._private_key = private_key
         self._chain_id = chain_id
+        import os as _os
+        from py_clob_client_v2.clob_types import BuilderConfig
+        bc = builder_code or _os.getenv("POLYMARKET_BUILDER_CODE", "").strip() or None
+        builder_cfg = BuilderConfig(builder_code=bc) if bc else None
         self._clob = ClobClient(
             host=CLOB_BASE,
             chain_id=chain_id,
             key=private_key,
             funder=funder,
             signature_type=1 if funder else 0,
+            builder_config=builder_cfg,
         )
         self.address: str = funder or self._clob.get_address()
 
