@@ -167,6 +167,45 @@ def clear_simulated_positions():
     return {"removed": before - after, "remaining": after}
 
 
+@app.post("/api/debug/deploy-deposit-wallet")
+def deploy_deposit_wallet():
+    """Step 1: Deploy deposit wallet via Polymarket relayer-v2."""
+    import os as _os, requests as _req, time as _time, hmac as _hmac, hashlib as _hashlib, base64 as _b64, json as _json
+    common.load_env()
+    try:
+        key = common.get_private_key()
+        api_key = _os.getenv("POLYMARKET_API_KEY", "").strip()
+        api_secret = _os.getenv("POLYMARKET_API_SECRET", "").strip()
+        api_passphrase = _os.getenv("POLYMARKET_API_PASSPHRASE", "").strip()
+
+        from eth_account import Account
+        acct = Account.from_key("0x" + key)
+        owner = acct.address
+
+        FACTORY = "0x00000000000Fb5C9ADea0298D729A0CB3823Cc07"
+        RELAYER = "https://relayer-v2.polymarket.com"
+        body = _json.dumps({"type": "WALLET-CREATE", "from": owner, "to": FACTORY}, separators=(",", ":"))
+
+        timestamp = str(int(_time.time()))
+        message = timestamp + "POST" + "/submit" + body
+        signature = _b64.b64encode(
+            _hmac.new(api_secret.encode(), message.encode(), _hashlib.sha256).digest()
+        ).decode()
+
+        headers = {
+            "Content-Type": "application/json",
+            "POLY-ADDRESS": owner,
+            "POLY-API-KEY": api_key,
+            "POLY-SIGNATURE": signature,
+            "POLY-TIMESTAMP": timestamp,
+            "POLY-PASSPHRASE": _b64.b64encode(api_passphrase.encode()).decode(),
+        }
+        r = _req.post(f"{RELAYER}/submit", headers=headers, data=body, timeout=15)
+        return {"status": r.status_code, "response": r.json() if r.text else {}, "owner": owner}
+    except Exception as exc:
+        return {"error": str(exc)}
+
+
 @app.get("/api/debug/register-wallet")
 def debug_register_wallet():
     """Approve USDC for CLOB exchange on-chain using raw JSON-RPC (no web3 middleware issues)."""
