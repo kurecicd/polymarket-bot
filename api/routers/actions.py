@@ -226,7 +226,7 @@ def test_auth():
         return {"ok": False, "error": "POLYMARKET_PRIVATE_KEY not set"}
     key_preview = f"{key[:6]}...{key[-4:]}" if len(key) > 10 else "too_short"
     try:
-        from py_clob_client.client import ClobClient
+        from py_clob_client_v2.client import ClobClient
         client = ClobClient(host="https://clob.polymarket.com", chain_id=137, key=key)
         address = client.get_address()
         creds = client.derive_api_key()

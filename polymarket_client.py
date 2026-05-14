@@ -9,8 +9,8 @@ from datetime import datetime, timezone
 from typing import Any
 
 import requests
-from py_clob_client.client import ClobClient
-from py_clob_client.clob_types import OrderArgs, OrderType, PartialCreateOrderOptions
+from py_clob_client_v2.client import ClobClient
+from py_clob_client_v2.clob_types import OrderArgs, OrderType, PartialCreateOrderOptions
 
 CLOB_BASE = "https://clob.polymarket.com"
 GAMMA_BASE = "https://gamma-api.polymarket.com"
@@ -75,7 +75,7 @@ class PolymarketClient:
         return {"api_key": resp.api_key, "api_secret": resp.api_secret, "api_passphrase": resp.api_passphrase}
 
     def set_api_credentials(self, api_key: str, api_secret: str, api_passphrase: str) -> None:
-        from py_clob_client.clob_types import ApiCreds
+        from py_clob_client_v2.clob_types import ApiCreds
         self._clob.set_api_creds(ApiCreds(
             api_key=api_key,
             api_secret=api_secret,
@@ -238,7 +238,7 @@ class PolymarketClient:
 
         if is_neg_risk:
             try:
-                from py_clob_client.clob_types import NegRiskOrderArgs
+                from py_clob_client_v2.clob_types import NegRiskOrderArgs
                 neg_args = NegRiskOrderArgs(
                     token_id=token_id,
                     price=price,

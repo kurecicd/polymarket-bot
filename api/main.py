@@ -177,7 +177,7 @@ def debug_test_order():
         return {"error": "POLYMARKET_PRIVATE_KEY not set"}
     try:
         from polymarket_client import PolymarketClient
-        from py_clob_client.clob_types import OrderArgs, OrderType
+        from py_clob_client_v2.clob_types import OrderArgs, OrderType
         client = PolymarketClient(private_key=key)
         creds = client.create_or_derive_api_key()
         client.set_api_credentials(creds["api_key"], creds["api_secret"], creds["api_passphrase"])
