@@ -186,16 +186,27 @@ def deploy_deposit_wallet():
         RELAYER = "https://relayer-v2.polymarket.com"
         body = _json.dumps({"type": "WALLET-CREATE", "from": owner, "to": FACTORY}, separators=(",", ":"))
 
-        # Use py_clob_client_v2 built-in L2 header generation
         from polymarket_client import PolymarketClient
-        from py_clob_client_v2.clob_types import ApiCreds
+        # Try 1: builder API credentials
         client = PolymarketClient(private_key=key)
         client.set_api_credentials(api_key, api_secret, api_passphrase)
-        headers = client._clob._l2_headers("POST", "/submit", body)
-        headers["Content-Type"] = "application/json"
+        h1 = client._clob._l2_headers("POST", "/submit", body)
+        h1["Content-Type"] = "application/json"
+        r1 = _req.post(f"{RELAYER}/submit", headers=h1, data=body, timeout=15)
 
-        r = _req.post(f"{RELAYER}/submit", headers=headers, data=body, timeout=15)
-        return {"status": r.status_code, "response": r.json() if r.text else {}, "owner": owner, "headers_used": list(headers.keys())}
+        # Try 2: derived credentials from Rabby key
+        client2 = PolymarketClient(private_key=key)
+        creds = client2.create_or_derive_api_key()
+        client2.set_api_credentials(creds["api_key"], creds["api_secret"], creds["api_passphrase"])
+        h2 = client2._clob._l2_headers("POST", "/submit", body)
+        h2["Content-Type"] = "application/json"
+        r2 = _req.post(f"{RELAYER}/submit", headers=h2, data=body, timeout=15)
+
+        return {
+            "owner": owner,
+            "builder_api_key_result": {"status": r1.status_code, "response": r1.json() if r1.text else {}},
+            "derived_key_result": {"status": r2.status_code, "response": r2.json() if r2.text else {}},
+        }
     except Exception as exc:
         return {"error": str(exc)}
 
