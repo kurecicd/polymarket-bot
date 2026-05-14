@@ -189,8 +189,8 @@ def deploy_deposit_wallet():
         from polymarket_client import PolymarketClient
         client = PolymarketClient(private_key=key)
 
-        # Try L1 auth (Ethereum signature)
-        l1_headers = client._clob._l1_headers("POST", "/submit", body)
+        # Try L1 auth (Ethereum signature — no args needed)
+        l1_headers = client._clob._l1_headers()
         l1_headers["Content-Type"] = "application/json"
         r1 = _req.post(f"{RELAYER}/submit", headers=l1_headers, data=body, timeout=15)
 
