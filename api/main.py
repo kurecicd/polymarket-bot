@@ -186,25 +186,14 @@ def deploy_deposit_wallet():
         RELAYER = "https://relayer-v2.polymarket.com"
         body = _json.dumps({"type": "WALLET-CREATE", "from": owner, "to": FACTORY}, separators=(",", ":"))
 
-        from polymarket_client import PolymarketClient
-        client = PolymarketClient(private_key=key)
-
-        # Try L1 auth (Ethereum signature — no args needed)
-        l1_headers = client._clob._l1_headers()
-        l1_headers["Content-Type"] = "application/json"
-        r1 = _req.post(f"{RELAYER}/submit", headers=l1_headers, data=body, timeout=15)
-
-        # Try L2 auth with builder credentials
-        client.set_api_credentials(api_key, api_secret, api_passphrase)
-        l2_headers = client._clob._l2_headers("POST", "/submit", body)
-        l2_headers["Content-Type"] = "application/json"
-        r2 = _req.post(f"{RELAYER}/submit", headers=l2_headers, data=body, timeout=15)
-
-        return {
-            "owner": owner,
-            "l1_auth": {"status": r1.status_code, "response": r1.json() if r1.text else {}},
-            "l2_auth": {"status": r2.status_code, "response": r2.json() if r2.text else {}},
+        relayer_api_key = _os.getenv("POLYMARKET_RELAYER_API_KEY", "").strip()
+        headers = {
+            "Content-Type": "application/json",
+            "RELAYER_API_KEY": relayer_api_key,
+            "RELAYER_API_KEY_ADDRESS": owner,
         }
+        r = _req.post(f"{RELAYER}/submit", headers=headers, data=body, timeout=15)
+        return {"status": r.status_code, "response": r.json() if r.text else {}, "owner": owner}
     except Exception as exc:
         return {"error": str(exc)}
 
