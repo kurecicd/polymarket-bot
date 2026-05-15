@@ -264,7 +264,7 @@ def debug_test_order():
         client.set_api_credentials(creds["api_key"], creds["api_secret"], creds["api_passphrase"])
         # Use the Bitcoin/GTA VI market NO token
         token_id = "91863162118308663069733924043159186005106558783397508844234610341221325526200"
-        order_args = OrderArgs(token_id=token_id, price=0.5, size=2.0, side="BUY")
+        order_args = OrderArgs(token_id=token_id, price=0.5, size=10.0, side="BUY")
         signed = client._clob.create_order(order_args)
         # Serialize order
         import dataclasses as _dc
