@@ -60,7 +60,7 @@ class PolymarketClient:
             chain_id=chain_id,
             key=private_key,
             funder=funder,
-            signature_type=1 if funder else 0,
+            signature_type=3 if funder else 0,  # POLY_1271 for deposit wallet, EOA for direct
             builder_config=builder_cfg,
         )
         self.address: str = funder or self._clob.get_address()
