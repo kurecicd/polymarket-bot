@@ -48,22 +48,22 @@ export default async function Dashboard() {
       {/* Stats bar */}
       {stats && <StatsBar stats={stats} />}
 
-      {/* Main grid */}
-      <div className="grid grid-cols-12 gap-3 mt-4">
-        <div className="col-span-3">
+      {/* Positions */}
+      <div className="mt-4">
+        <PositionsTable open={positions.open} closed={positions.closed} />
+      </div>
+
+      {/* Main grid — whales + consensus + activity */}
+      <div className="grid grid-cols-12 gap-3 mt-3">
+        <div className="col-span-4">
           <WhaleTable whales={whales.whales} />
         </div>
         <div className="col-span-3">
           <ConsensusLog events={consensus} />
         </div>
-        <div className="col-span-6">
-          <PositionsTable open={positions.open} closed={positions.closed} />
+        <div className="col-span-5">
+          <ActivityFeed events={activity} />
         </div>
-      </div>
-
-      {/* Activity log */}
-      <div className="mt-3">
-        <ActivityFeed events={activity} />
       </div>
     </main>
   );
