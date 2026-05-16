@@ -15,6 +15,9 @@ router = APIRouter()
 _positions_cache: dict = {"data": None, "ts": 0}
 _CACHE_TTL = 300  # 5-minute cache — 40 parallel HTTP calls
 
+_slug_cache: dict = {"data": {}, "ts": 0}  # condition_id → slug, 1-hour TTL
+_SLUG_TTL = 3600
+
 
 @router.get("")
 def get_whales():
@@ -46,28 +49,46 @@ def _fetch_positions(address: str) -> list[dict]:
         return []
 
 
-def _fetch_slugs(condition_ids: list[str]) -> dict[str, str]:
-    """Batch-fetch event slugs from Gamma API. Returns {conditionId: slug}."""
-    if not condition_ids:
-        return {}
-    slugs: dict[str, str] = {}
-    # Gamma handles up to ~50 condition_ids per call
+def _get_slugs(condition_ids: list[str]) -> dict[str, str]:
+    """
+    Return slug map from cache. If stale, fetch from Gamma API in background
+    (best-effort, 4s timeout per batch). Never blocks the caller for long.
+    Slugs change rarely so 1-hour TTL is fine.
+    """
+    global _slug_cache
+    # Return whatever is cached immediately — even if stale — to not block positions
+    cached = dict(_slug_cache["data"])
+
+    # Only re-fetch if stale
+    if time.time() - _slug_cache["ts"] < _SLUG_TTL:
+        return cached
+
+    # Fetch missing slugs (short timeout so it doesn't block)
+    new_slugs: dict[str, str] = {}
     for i in range(0, len(condition_ids), 40):
         batch = condition_ids[i:i + 40]
         try:
             r = _req.get(
                 "https://gamma-api.polymarket.com/markets",
                 params={"condition_ids": ",".join(batch)},
-                timeout=10,
+                timeout=4,
             )
-            for m in (r.json() if isinstance(r.json(), list) else []):
-                cid = m.get("conditionId") or m.get("condition_id") or ""
-                slug = m.get("slug") or m.get("marketSlug") or ""
-                if cid and slug:
-                    slugs[cid] = slug
+            data = r.json()
+            if isinstance(data, list):
+                for m in data:
+                    # Normalise to lowercase for consistent matching
+                    cid = (m.get("conditionId") or m.get("condition_id") or "").lower()
+                    slug = m.get("slug") or m.get("marketSlug") or ""
+                    if cid and slug:
+                        new_slugs[cid] = slug
         except Exception:
             pass
-    return slugs
+
+    if new_slugs:
+        _slug_cache["data"].update(new_slugs)
+        _slug_cache["ts"] = time.time()
+
+    return dict(_slug_cache["data"])
 
 
 def _parse_opened_at(pos: dict) -> str | None:
@@ -226,9 +247,9 @@ def get_whale_live_positions():
                     "opened_at": opened_at,
                 })
 
-    # Fetch slugs for all condition_ids in one batch (correct Polymarket URLs)
+    # Get slugs (cached, non-blocking — returns empty dict on first call, fills in after)
     all_cids = list({m["condition_id"] for m in by_market.values()})
-    slug_map = _fetch_slugs(all_cids)
+    slug_map = _get_slugs([c.lower() for c in all_cids])
 
     market_list = []
     for m in by_market.values():
@@ -237,7 +258,7 @@ def get_whale_live_positions():
             continue
         prices = [w["price"] for w in m["whales"] if w["price"] > 0]
         avg_price = round(sum(prices) / len(prices), 4) if prices else 0.0
-        slug = slug_map.get(m["condition_id"], "")
+        slug = slug_map.get(m["condition_id"].lower(), "")
         # Earliest date any whale opened this position
         dates = [w["opened_at"] for w in m["whales"] if w.get("opened_at")]
         earliest_opened = min(dates) if dates else None
@@ -284,7 +305,7 @@ def get_whale_live_positions():
                 "end_date": end_date,
                 "days_left": dl,
                 "condition_id": cid,
-                "slug": slug_map.get(cid, ""),
+                "slug": slug_map.get(cid.lower(), ""),
                 "opened_at": _parse_opened_at(pos),
                 "consensus": None,  # filled in by scanner
             })
