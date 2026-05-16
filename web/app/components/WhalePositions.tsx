@@ -81,52 +81,42 @@ function ConsensusDetail({ c, onClose }: {
   );
 }
 
-function AnalyzeButtons() {
-  const [loading, setLoading] = useState<"dry" | "live" | null>(null);
-  const [summary, setSummary] = useState<string>("");
+function DryRunButton() {
+  const [loading, setLoading] = useState(false);
+  const [summary, setSummary] = useState("");
 
-  async function run(execute: boolean) {
-    const mode = execute ? "live" : "dry";
-    setLoading(mode);
+  async function run() {
+    setLoading(true);
     setSummary("");
     try {
-      const res = await fetch(`/api/proxy/whales/live-positions/analyze?execute=${execute}`, { method: "POST" });
+      const res = await fetch("/api/proxy/whales/live-positions/analyze?execute=false", { method: "POST" });
       const data = await res.json();
-      const results: { status: string; traded?: boolean }[] = data.results || [];
+      const results: { status: string }[] = data.results || [];
       const approved = results.filter(r => r.status === "approved").length;
       const rejected = results.filter(r => r.status === "rejected").length;
       const filtered = results.filter(r => r.status === "filtered" || r.status === "already_holding").length;
-      const traded = results.filter(r => r.traded).length;
-      const parts: string[] = [`${results.length} checked`];
-      if (approved) parts.push(`${approved} approved`);
+      const parts = [`${results.length} checked`];
+      if (approved) parts.push(`${approved} would trade`);
       if (rejected) parts.push(`${rejected} rejected`);
       if (filtered) parts.push(`${filtered} skipped`);
-      if (traded) parts.push(`${traded} TRADED ✓`);
       setSummary(parts.join(" · "));
-      if (traded) setTimeout(() => window.location.reload(), 1500);
-      else setTimeout(() => setSummary(""), 10000);
+      setTimeout(() => setSummary(""), 12000);
     } catch {
-      setSummary("error — check Railway logs");
+      setSummary("error");
     } finally {
-      setLoading(null);
+      setLoading(false);
     }
   }
 
   return (
     <div className="inline-flex items-center gap-2">
       <button
-        onClick={() => run(false)}
-        disabled={loading !== null}
-        className="border border-green-800 rounded px-2 py-0.5 text-xs text-green-700 hover:text-green-500 hover:border-green-700 disabled:opacity-40"
+        onClick={run}
+        disabled={loading}
+        className="border border-green-800 rounded px-2 py-0.5 text-xs text-green-700 hover:text-green-500 disabled:opacity-40"
+        title="Dry-run: see what the auto-scanner would do right now (no orders placed)"
       >
-        {loading === "dry" ? "ANALYZING…" : "ANALYZE"}
-      </button>
-      <button
-        onClick={() => run(true)}
-        disabled={loading !== null}
-        className="border border-green-600 rounded px-2 py-0.5 text-xs text-green-400 hover:bg-green-900/40 disabled:opacity-40"
-      >
-        {loading === "live" ? "PLACING…" : "ANALYZE + PLACE BETS"}
+        {loading ? "CHECKING…" : "DRY RUN"}
       </button>
       {summary && <span className="text-green-600 text-xs">{summary}</span>}
     </div>
@@ -310,7 +300,7 @@ export default function WhalePositions({ data }: { data: { by_market: WhaleLiveM
             BY WHALE ({whales.length} active)
           </button>
         </div>
-        <AnalyzeButtons />
+        <DryRunButton />
       </div>
 
       {tab === "market"
@@ -319,7 +309,7 @@ export default function WhalePositions({ data }: { data: { by_market: WhaleLiveM
       }
 
       <p className="text-green-900 text-xs mt-1">
-        Cached 5 min · — = bot never ran consensus on this market · click ANALYZE to run now
+        Stats only · auto-scans every 10 min in execute mode (≥3 whales → consensus → trade) · DRY RUN shows what it would do now
       </p>
     </div>
   );

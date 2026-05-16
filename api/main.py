@@ -73,6 +73,30 @@ def _run_whale_refresh():
         pass
 
 
+def _run_whale_position_scanner():
+    """
+    Every 10 minutes: look at what all 40 tracked whales are currently holding.
+    If ≥3 whales hold the same market+outcome and we don't already have a position,
+    run 3-agent consensus and place a trade if approved.
+    Complements the 60s monitor (which catches new entries); this catches markets
+    whales entered before we started watching them.
+    """
+    common.load_env()
+    state = common.load_execution_state()
+    if state.get("execution_mode") != "execute":
+        return
+    try:
+        from api.routers.whales import analyze_whale_positions
+        result = analyze_whale_positions(execute=True)
+        traded = sum(1 for r in result.get("results", []) if r.get("traded"))
+        analyzed = len(result.get("results", []))
+        if analyzed > 0:
+            common.log_event("position_scanner", common.new_run_id("ps"),
+                             "scan_complete", analyzed=analyzed, traded=traded)
+    except Exception as e:
+        common.log_event("position_scanner", common.new_run_id("ps"), "scan_failed", error=str(e)[:200])
+
+
 scheduler = BackgroundScheduler()
 
 @asynccontextmanager
@@ -80,6 +104,7 @@ async def lifespan(app: FastAPI):
     common.load_env()
     scheduler.add_job(_run_monitor, "interval", seconds=60, id="monitor", max_instances=1)
     scheduler.add_job(_run_position_manager, "interval", seconds=300, id="position_manager", max_instances=1)
+    scheduler.add_job(_run_whale_position_scanner, "interval", minutes=10, id="whale_position_scanner", max_instances=1)
     scheduler.add_job(_run_whale_refresh, "interval", weeks=1, id="whale_refresh", max_instances=1)
     scheduler.start()
     yield

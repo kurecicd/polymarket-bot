@@ -272,10 +272,18 @@ def analyze_whale_positions(execute: bool = False):
     active = execution_state.get("active_positions", {})
     results = []
 
-    for market in markets[:10]:  # analyze top 10 by whale count
+    MIN_WHALES_TO_TRADE = 3  # only enter markets where ≥3 tracked whales hold the same side
+
+    for market in markets[:10]:  # check top 10 by whale count
         cid = market["condition_id"]
         title = market["title"]
         outcome = market["outcome"]
+
+        # Require ≥3 whales on the same side — 2 is noise, 3 is a signal
+        if market["whale_count"] < MIN_WHALES_TO_TRADE:
+            results.append({"market": title[:60], "status": "filtered",
+                            "reason": f"only {market['whale_count']}/3 whales required"})
+            continue
 
         # Skip if already holding this exact market+outcome
         already_in = any(
