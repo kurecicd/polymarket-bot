@@ -93,7 +93,7 @@ def log_event(script: str, run_id: str, event_type: str, **details: Any) -> None
 
 
 def get_capital(client=None) -> float:
-    """Return live USDC balance from blockchain. Falls back to env/state if client not provided."""
+    """Return live pUSD balance from deposit wallet. Falls back to env var if client not provided."""
     if client is not None:
         try:
             bal = client.get_usdc_balance()
@@ -101,15 +101,10 @@ def get_capital(client=None) -> float:
                 return bal
         except Exception:
             pass
-    # Env var override (useful for testing)
     env_val = float(os.getenv("POLYMARKET_CAPITAL", "0"))
     if env_val > 0:
         return env_val
-    try:
-        state = read_json(EXECUTION_STATE_PATH)
-        return float(state.get("capital", 0))
-    except Exception:
-        return 0.0
+    return 0.0
 
 
 def set_capital(amount: float) -> None:

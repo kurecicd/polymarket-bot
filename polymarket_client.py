@@ -90,19 +90,28 @@ class PolymarketClient:
     # ── Account ───────────────────────────────────────────────────────────────
 
     def get_usdc_balance(self) -> float:
-        """Returns USDC balance by reading directly from Polygon blockchain."""
-        USDC_CONTRACT = "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359"  # native USDC (Polymarket uses this)
+        """Returns pUSD balance of the deposit wallet from Polygon blockchain."""
+        PUSD_CONTRACT = "0xC011a7E12a19f7B1f670d46F03B03f3342E82DFB"  # pUSD (Polymarket's trading token)
         POLYGON_RPC = "https://polygon-bor-rpc.publicnode.com"
-        # balanceOf(address) selector + padded address
         data = "0x70a08231" + "000000000000000000000000" + self.address.lower().removeprefix("0x")
         try:
             resp = _SESSION.post(POLYGON_RPC, json={
                 "jsonrpc": "2.0", "method": "eth_call",
-                "params": [{"to": USDC_CONTRACT, "data": data}, "latest"],
+                "params": [{"to": PUSD_CONTRACT, "data": data}, "latest"],
                 "id": 1,
             }, timeout=8)
             result = resp.json().get("result", "0x0")
-            return int(result, 16) / 1e6
+            bal = int(result, 16) / 1e6
+            if bal > 0:
+                return bal
+            # Fallback: check native USDC if pUSD is 0
+            USDC = "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359"
+            resp2 = _SESSION.post(POLYGON_RPC, json={
+                "jsonrpc": "2.0", "method": "eth_call",
+                "params": [{"to": USDC, "data": data}, "latest"],
+                "id": 1,
+            }, timeout=8)
+            return int(resp2.json().get("result", "0x0"), 16) / 1e6
         except Exception:
             return 0.0
 
