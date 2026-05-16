@@ -52,7 +52,7 @@ function PositionRow({ position: p, isOpen }: { position: Position; isOpen: bool
 
   const pnl = p.realized_pnl ?? 0;
   const pnlColor = pnl > 0 ? "text-green-300" : pnl < 0 ? "text-red-400" : "text-green-700";
-  const strategy = p.strategy === "quick_bet" ? "[QB]" : "[W]";
+  const strategy = p.strategy === "quick_bet" ? "Quick Bet" : "Whale Copy";
   const outcome = p.outcome ?? (p.token_id ? "NO" : "YES"); // QB bets NO by default
   const outcomeBadge = outcome === "NO"
     ? <span className="text-red-400 font-bold">NO</span>
