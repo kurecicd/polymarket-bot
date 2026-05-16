@@ -10,18 +10,20 @@ export default function WhaleTable({ whales }: { whales: Whale[] }) {
         <table className="w-full text-xs">
           <thead>
             <tr className="text-green-700">
+              <th className="text-left pb-1">#</th>
               <th className="text-left pb-1">WALLET</th>
               <th className="text-right pb-1">TRADES</th>
               <th className="text-right pb-1">AVG SIZE</th>
             </tr>
           </thead>
           <tbody>
-            {whales.slice(0, 20).map((w) => {
+            {whales.slice(0, 40).map((w, i) => {
               const trades = w.total_trades ?? 0;
               const avgSize = w.avg_position_size_usdc ?? 0;
               const sizeStr = avgSize >= 10000 ? `$${(avgSize/1000).toFixed(0)}k` : `$${avgSize.toFixed(0)}`;
               return (
                 <tr key={w.address} className="border-t border-green-950">
+                  <td className="py-0.5 text-green-800 pr-1">{i + 1}</td>
                   <td className="py-0.5 text-green-600">
                     {w.address.slice(0, 6)}…{w.address.slice(-4)}
                   </td>
