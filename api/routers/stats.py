@@ -60,6 +60,31 @@ def get_stats():
     if common.WHALE_LIST_PATH.exists():
         whale_list = common.read_json(common.WHALE_LIST_PATH)
 
+    # Live pUSD balance from deposit wallet
+    balance_usdc = 0.0
+    try:
+        import os, requests as _req
+        common.load_env()
+        key = common.get_private_key().strip()
+        funder = os.getenv("POLYMARKET_FUNDER_ADDRESS", "").strip() or None
+        addr = funder or ""
+        if addr:
+            PUSD = "0xC011a7E12a19f7B1f670d46F03B03f3342E82DFB"
+            data = "0x70a08231000000000000000000000000" + addr.lower().removeprefix("0x")
+            r = _req.post("https://polygon-bor-rpc.publicnode.com", json={
+                "jsonrpc": "2.0", "method": "eth_call",
+                "params": [{"to": PUSD, "data": data}, "latest"], "id": 1,
+            }, timeout=5)
+            balance_usdc = int(r.json().get("result", "0x0"), 16) / 1e6
+    except Exception:
+        pass
+
+    invested_usdc = sum(
+        float(p.get("size_usdc", 0))
+        for p in active.values()
+        if p.get("status") == "open"
+    )
+
     return {
         "total_trades": total_trades,
         "wins": wins,
@@ -71,4 +96,6 @@ def get_stats():
         "daily_trades": daily_count,
         "whale_count": len(whale_list.get("whales", [])),
         "execution_mode": execution_state.get("execution_mode", "dry_run"),
+        "balance_usdc": round(balance_usdc, 2),
+        "invested_usdc": round(invested_usdc, 2),
     }

@@ -29,6 +29,8 @@ export async function getStats() {
     daily_trades: number;
     whale_count: number;
     execution_mode: string;
+    balance_usdc: number;
+    invested_usdc: number;
   }>("/api/stats");
 }
 
