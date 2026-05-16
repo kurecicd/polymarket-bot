@@ -152,13 +152,13 @@ def _close_position(
                 size_usdc=size_shares,  # size_usdc param is used as shares for SELL
             )
             log.info(f"Sell order placed: {order_resp.get('orderID') or order_resp.get('order_id')}")
-        except RuntimeError as exc:
+        except Exception as exc:
             log.error(f"Sell order failed: {exc}")
             common.log_event(
                 "position_manager",
                 common.new_run_id("pm"),
                 "sell_order_failed",
-                error=str(exc),
+                error=str(exc)[:200],
                 position_id=position.get("position_id"),
             )
             return
