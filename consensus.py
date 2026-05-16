@@ -158,7 +158,15 @@ def run_consensus(signal: dict, whale: dict) -> ConsensusResult:
         market=signal.get("market_question", "")[:80],
         buy_count=buy_count,
         approved=approved,
-        votes=[{"agent": v.agent, "decision": v.decision, "confidence": v.confidence} for v in votes],
+        votes=[
+            {
+                "agent": v.agent,
+                "decision": v.decision,
+                "confidence": v.confidence,
+                "reasoning": v.reasoning,
+            }
+            for v in votes
+        ],
     )
 
     return ConsensusResult(

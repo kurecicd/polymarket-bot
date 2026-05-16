@@ -1,3 +1,4 @@
+import json
 import time
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -152,6 +153,51 @@ def get_whale_live_positions():
 
     result.sort(key=lambda x: (-x["whale_count"], -x["total_whale_value"]))
 
+    # Join with consensus event log — show why the bot did/didn't trade each market
+    consensus_by_title = _load_consensus_by_title()
+    for market in result:
+        market["consensus"] = _match_consensus(market["title"], consensus_by_title)
+
     _positions_cache["data"] = result
     _positions_cache["ts"] = time.time()
     return result
+
+
+def _load_consensus_by_title() -> list[dict]:
+    """Read all vote_complete events from event_log, newest first."""
+    if not common.EVENT_LOG_PATH.exists():
+        return []
+    events = []
+    try:
+        lines = common.EVENT_LOG_PATH.read_text(encoding="utf-8").splitlines()
+        for line in reversed(lines):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                e = json.loads(line)
+                if e.get("event") == "vote_complete":
+                    events.append(e)
+                if len(events) >= 500:
+                    break
+            except Exception:
+                pass
+    except Exception:
+        pass
+    return events
+
+
+def _match_consensus(title: str, events: list[dict]) -> dict | None:
+    """Find the most recent consensus vote for a given market title."""
+    key = title.lower().strip()[:40]
+    for e in events:  # already newest-first
+        ev_market = (e.get("details", {}).get("market") or "").lower().strip()
+        if key and ev_market and (key in ev_market or ev_market[:40] in key):
+            d = e.get("details", {})
+            return {
+                "time": e.get("time"),
+                "approved": d.get("approved"),
+                "buy_count": d.get("buy_count"),
+                "votes": d.get("votes", []),
+            }
+    return None
