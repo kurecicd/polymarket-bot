@@ -87,9 +87,15 @@ def trigger_refresh_whales(background_tasks: BackgroundTasks):
     """Re-run wallet ranking and whale selection."""
     common.log_event("dashboard", "REFRESH_WHALES", "button_press", execute=False, status="started")
     def _refresh():
-        r1 = _run("rank_wallets.py")
+        import os as _os
+        common.load_env()
+        if common.has_real_value(_os.getenv("DUNE_API_KEY", "")):
+            # Fetch fresh rankings from Dune (real ROI data)
+            r1 = _run("dune_fetch.py", "--limit", "500", timeout=600)
+        else:
+            r1 = _run("rank_wallets.py")
         r2 = _run("select_whales.py")
-        combined = {"success": r1["success"] and r2["success"], "stdout": r1["stdout"] + r2["stdout"], "stderr": r1["stderr"] + r2["stderr"]}
+        combined = {"success": r2["success"], "stdout": r1["stdout"] + r2["stdout"], "stderr": r1["stderr"] + r2["stderr"]}
         _log_action("REFRESH_WHALES", False, combined)
     background_tasks.add_task(_refresh)
     return {"status": "triggered"}
