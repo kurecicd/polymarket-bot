@@ -10,7 +10,7 @@ router = APIRouter()
 INTERESTING_EVENTS = {
     "copy_trade_opened", "position_closed", "vote_complete",
     "order_failed", "sell_order_failed", "daily_limit_reached",
-    "quick_bet_placed",
+    "quick_bet_placed", "scan_complete", "scan_failed",
 }
 
 

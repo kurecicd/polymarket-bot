@@ -242,8 +242,10 @@ def get_whale_live_positions():
 @router.post("/live-positions/analyze")
 def analyze_whale_positions(execute: bool = False):
     """
-    Run 3-agent consensus on the top whale-concentration markets.
-    If execute=True and consensus approves, places a BUY order.
+    Run 3-agent consensus on ALL top whale-concentration markets (≥2 whales),
+    regardless of whether we would trade them. Consensus is always logged so the
+    dashboard panel always shows reasoning. Trading only happens when ≥3 whales
+    + passes trading filters + execute=True + consensus approved.
     """
     from polymarket_client import PolymarketClient
     from consensus import run_consensus
@@ -253,7 +255,7 @@ def analyze_whale_positions(execute: bool = False):
     cached = get_whale_live_positions()
     markets = cached.get("by_market", []) if isinstance(cached, dict) else []
     if not markets:
-        return {"results": [], "message": "No whale positions found — refresh first"}
+        return {"results": [], "message": "No whale positions found"}
 
     try:
         key = common.get_private_key()
@@ -271,123 +273,111 @@ def analyze_whale_positions(execute: bool = False):
     execution_state = common.load_execution_state()
     active = execution_state.get("active_positions", {})
     results = []
+    MIN_WHALES_TO_TRADE = 3
 
-    MIN_WHALES_TO_TRADE = 3  # place a real trade only when ≥3 whales agree on same side
-    # Consensus always runs for ≥2 whales (so results show in dashboard panel)
-
-    for market in markets[:15]:  # check top 15 by whale count
+    for market in markets[:15]:
         cid = market["condition_id"]
         title = market["title"]
         outcome = market["outcome"]
+        whale_count = market["whale_count"]
 
-        # Skip if already holding this exact market+outcome
         already_in = any(
             p.get("condition_id") == cid and p.get("status") == "open"
             for p in active.values()
         )
-        if already_in:
-            results.append({"market": title[:60], "status": "already_holding", "outcome": outcome})
-            continue
 
-        # Fetch market from CLOB to get live data
+        # ── Get current price for consensus context (best effort) ──────────────
+        token_id = market.get("token_id") or ""
+        best_ask = market.get("avg_price") or 0.5  # fallback to whale avg price
+        end_date = market.get("end_date") or ""
+        hours_left = _days_left(end_date) * 24 if _days_left(end_date) is not None else 0
+        liquidity = float(market.get("total_whale_value") or 0)  # proxy
+
+        # Try to get live CLOB data (better numbers for consensus context)
         try:
             clob_market = client.get_market(cid)
-        except Exception as exc:
-            results.append({"market": title[:60], "status": "fetch_failed", "error": str(exc)[:100]})
-            continue
-
-        end_date = clob_market.get("end_date_iso") or clob_market.get("endDateIso") or ""
-        if not end_date:
-            results.append({"market": title[:60], "status": "filtered", "reason": "no end date"})
-            continue
-
-        hours_left = PolymarketClient.hours_until_end(end_date)
-        if hours_left <= 72:
-            results.append({"market": title[:60], "status": "filtered", "reason": f"only {hours_left:.0f}h left"})
-            continue
-        if hours_left > 1080:
-            results.append({"market": title[:60], "status": "filtered", "reason": "too far out (>45 days)"})
-            continue
-
-        liquidity = float(clob_market.get("liquidity") or 0)
-        if liquidity < 10_000:
-            results.append({"market": title[:60], "status": "filtered", "reason": f"low liquidity ${liquidity:.0f}"})
-            continue
-
-        # Find the right token_id for the desired outcome
-        token_id = market.get("token_id") or ""
-        if not token_id:
-            for tok in (clob_market.get("tokens") or []):
-                if (tok.get("outcome") or "").upper() == outcome:
-                    token_id = tok.get("token_id", "")
-                    break
-        if not token_id:
-            results.append({"market": title[:60], "status": "filtered", "reason": "no token ID"})
-            continue
-
-        # Get live best_ask from order book
-        try:
-            book = client.get_book(token_id)
-            asks = book.get("asks") or []
-            if not asks:
-                results.append({"market": title[:60], "status": "filtered", "reason": "empty order book"})
-                continue
-            best_ask = float(min(asks, key=lambda x: float(x.get("price", 1)))["price"])
+            end_date = clob_market.get("end_date_iso") or clob_market.get("endDateIso") or end_date
+            liquidity = float(clob_market.get("liquidity") or liquidity)
+            if end_date:
+                hours_left = PolymarketClient.hours_until_end(end_date)
+            # Find token_id
+            if not token_id:
+                for tok in (clob_market.get("tokens") or []):
+                    if (tok.get("outcome") or "").upper() == outcome:
+                        token_id = tok.get("token_id", "")
+                        break
+            # Get live order book price
+            if token_id:
+                book = client.get_book(token_id)
+                asks = book.get("asks") or []
+                if asks:
+                    best_ask = float(min(asks, key=lambda x: float(x.get("price", 1)))["price"])
         except Exception:
-            results.append({"market": title[:60], "status": "filtered", "reason": "book fetch failed"})
-            continue
+            pass  # use fallback values — consensus still runs
 
-        if best_ask <= 0.10 or best_ask >= 0.90:
-            results.append({"market": title[:60], "status": "filtered", "reason": f"price {best_ask:.2f} outside 10-90%"})
-            continue
-
-        # Build signal and run 3-agent consensus
+        # ── Always run 3-agent consensus (regardless of trading filters) ────────
         signal = {
             "market_question": title,
             "market_liquidity": liquidity,
             "end_date_iso": end_date,
             "token_id": token_id,
             "condition_id": cid,
-            "price": str(best_ask),
+            "price": str(round(best_ask, 4)),
             "size": str(market["total_whale_value"]),
-            "hours_left": hours_left,
+            "hours_left": round(hours_left, 1),
         }
         whale_summary = {
-            "address": f"{market['whale_count']}_tracked_whales",
+            "address": f"{whale_count}_tracked_whales",
             "roi_pct": 0,
             "win_rate": None,
             "total_profit_usdc": market["total_whale_value"],
-            "total_trades": market["whale_count"],
-            "avg_position_size_usdc": round(market["total_whale_value"] / max(market["whale_count"], 1), 2),
+            "total_trades": whale_count,
+            "avg_position_size_usdc": round(market["total_whale_value"] / max(whale_count, 1), 2),
         }
 
         try:
             consensus_result = run_consensus(signal, whale_summary)
             approved = consensus_result.approved
             vote_details = [
-                {
-                    "agent": v.agent,
-                    "decision": v.decision,
-                    "confidence": v.confidence,
-                    "reasoning": v.reasoning,
-                }
+                {"agent": v.agent, "decision": v.decision,
+                 "confidence": v.confidence, "reasoning": v.reasoning}
                 for v in consensus_result.votes
             ]
         except Exception as exc:
             results.append({"market": title[:60], "status": "consensus_failed", "error": str(exc)[:100]})
             continue
 
+        # ── Check trading filters (separate from consensus) ─────────────────────
+        tradeable = True
+        trade_skip_reason = None
+        if already_in:
+            tradeable, trade_skip_reason = False, "already holding"
+        elif whale_count < MIN_WHALES_TO_TRADE:
+            tradeable, trade_skip_reason = False, f"only {whale_count}/3 whales"
+        elif hours_left <= 72:
+            tradeable, trade_skip_reason = False, f"only {hours_left:.0f}h left"
+        elif hours_left > 1080:
+            tradeable, trade_skip_reason = False, "too far out"
+        elif liquidity < 10_000:
+            tradeable, trade_skip_reason = False, f"low liquidity"
+        elif best_ask <= 0.10 or best_ask >= 0.90:
+            tradeable, trade_skip_reason = False, f"price {best_ask:.2f} outside 10-90%"
+        elif not token_id:
+            tradeable, trade_skip_reason = False, "no token ID"
+
         entry = {
             "market": title[:60],
             "outcome": outcome,
-            "whale_count": market["whale_count"],
+            "whale_count": whale_count,
             "price": best_ask,
             "status": "approved" if approved else "rejected",
+            "tradeable": tradeable,
+            "trade_skip_reason": trade_skip_reason,
             "buy_count": consensus_result.buy_count,
             "votes": vote_details,
         }
 
-        if approved and execute and market["whale_count"] >= MIN_WHALES_TO_TRADE:
+        if approved and execute and tradeable and market["whale_count"] >= MIN_WHALES_TO_TRADE:
             try:
                 import time as _t
                 usdc_balance = common.get_capital(client)

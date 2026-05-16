@@ -100,9 +100,11 @@ scheduler = BackgroundScheduler()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     common.load_env()
+    from datetime import datetime as _dt
     scheduler.add_job(_run_monitor, "interval", seconds=60, id="monitor", max_instances=1)
     scheduler.add_job(_run_position_manager, "interval", seconds=300, id="position_manager", max_instances=1)
-    scheduler.add_job(_run_whale_position_scanner, "interval", minutes=10, id="whale_position_scanner", max_instances=1)
+    scheduler.add_job(_run_whale_position_scanner, "interval", minutes=10, id="whale_position_scanner",
+                      max_instances=1, next_run_time=_dt.now())  # run immediately on startup
     scheduler.add_job(_run_whale_refresh, "interval", weeks=1, id="whale_refresh", max_instances=1)
     scheduler.start()
     yield
