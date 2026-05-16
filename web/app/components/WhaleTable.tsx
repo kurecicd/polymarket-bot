@@ -6,7 +6,7 @@ export default function WhaleTable({ whales }: { whales: Whale[] }) {
       <h2 className="text-xs font-bold text-green-500 mb-2 border-b border-green-900 pb-1">
         WHALE TRACKER // {whales.length} WALLETS
       </h2>
-      <div className="overflow-auto max-h-96">
+      <div className="overflow-auto max-h-64">
         <table className="w-full text-xs">
           <thead>
             <tr className="text-green-700">
@@ -16,6 +16,7 @@ export default function WhaleTable({ whales }: { whales: Whale[] }) {
               <th className="text-right pb-1">TRADES</th>
               <th className="text-right pb-1">AVG</th>
               <th className="text-right pb-1">BALANCE</th>
+              <th className="text-left pb-1 pl-2">CATEGORIES</th>
             </tr>
           </thead>
           <tbody>
@@ -47,6 +48,13 @@ export default function WhaleTable({ whales }: { whales: Whale[] }) {
                   <td className="text-right text-green-400">{trades.toLocaleString()}</td>
                   <td className="text-right text-green-500">{sizeStr}</td>
                   <td className={`text-right ${balColor}`}>{balStr}</td>
+                  <td className="pl-2 text-green-800 text-xs">
+                    {w.categories && Object.keys(w.categories).length > 0
+                      ? Object.entries(w.categories).slice(0, 3).map(([cat, pct]) => (
+                          <span key={cat} className="mr-1">{cat} {pct}%</span>
+                        ))
+                      : "—"}
+                  </td>
                 </tr>
               );
             })}

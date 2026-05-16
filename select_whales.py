@@ -57,12 +57,41 @@ def main(top_n: int | None = None) -> None:
 
     top = df.head(top_n)
 
+    def _category_breakdown(address: str) -> dict:
+        """Fetch recent trades and compute category % breakdown."""
+        try:
+            r = _req.get("https://data-api.polymarket.com/trades",
+                         params={"user": address, "limit": 100}, timeout=8)
+            trades = r.json() if isinstance(r.json(), list) else []
+            if not trades:
+                return {}
+            # Classify by keywords in title
+            cats: dict[str, int] = {}
+            for t in trades:
+                title = (t.get("title") or "").lower()
+                if any(k in title for k in ["bitcoin", "eth", "crypto", "btc", "sol", "doge", "xrp"]):
+                    cat = "Crypto"
+                elif any(k in title for k in ["trump", "biden", "president", "election", "vote", "congress", "senate", "democrat", "republican"]):
+                    cat = "Politics"
+                elif any(k in title for k in ["nba", "nfl", "soccer", "football", "basketball", "baseball", "tennis", "golf", "ufc", "mma"]):
+                    cat = "Sports"
+                elif any(k in title for k in ["ai ", "openai", "gpt", "tech", "apple", "google", "meta", "microsoft"]):
+                    cat = "Tech"
+                else:
+                    cat = "Other"
+                cats[cat] = cats.get(cat, 0) + 1
+            total = sum(cats.values())
+            return {k: round(v / total * 100) for k, v in sorted(cats.items(), key=lambda x: -x[1])}
+        except Exception:
+            return {}
+
     whale_list = []
     for i, (_, row) in enumerate(top.iterrows()):
         addr = row["maker_address"]
         balance = _pusd_balance(addr)
+        categories = _category_breakdown(addr)
         if i % 10 == 0:
-            log.info(f"Fetching balances... {i}/{len(top)}")
+            log.info(f"Fetching data... {i}/{len(top)}")
         whale_list.append({
             "address": addr,
             "win_rate": float(row["win_rate"]),
@@ -72,6 +101,7 @@ def main(top_n: int | None = None) -> None:
             "resolved_trades": int(row["resolved_trades"]),
             "roi_pct": float(row["roi_pct"]),
             "balance_usdc": balance,
+            "categories": categories,
             "selected_at": common.iso_now(),
         })
 

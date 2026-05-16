@@ -53,15 +53,17 @@ export default async function Dashboard() {
         <PositionsTable open={positions.open} closed={positions.closed} />
       </div>
 
-      {/* Main grid — whales + consensus + activity */}
+      {/* Whale tracker — full width */}
+      <div className="mt-3">
+        <WhaleTable whales={whales.whales} />
+      </div>
+
+      {/* Consensus + Activity */}
       <div className="grid grid-cols-12 gap-3 mt-3">
         <div className="col-span-4">
-          <WhaleTable whales={whales.whales} />
-        </div>
-        <div className="col-span-3">
           <ConsensusLog events={consensus} />
         </div>
-        <div className="col-span-5">
+        <div className="col-span-8">
           <ActivityFeed events={activity} />
         </div>
       </div>

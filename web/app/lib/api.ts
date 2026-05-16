@@ -93,6 +93,7 @@ export interface Position {
   position_id: string;
   market_question: string;
   market_group?: string;
+  market_category?: string;
   token_id: string;
   whale_address: string;
   entry_price: number;
@@ -119,6 +120,7 @@ export interface Whale {
   volume_30d_usdc?: number;
   resolved_trades?: number;
   balance_usdc?: number;
+  categories?: Record<string, number>;
 }
 
 export interface ActivityEvent {

@@ -74,7 +74,12 @@ function PositionRow({ position: p, isOpen }: { position: Position; isOpen: bool
   return (
     <tr className={`border-t border-green-950 ${closed ? "opacity-40" : ""}`}>
       <td className="py-1 max-w-[220px]">
-        <div className="text-green-700 text-xs">{strategy}</div>
+        <div className="text-green-700 text-xs flex items-center gap-1">
+          <span>{strategy}</span>
+          {p.market_category && (
+            <span className="text-green-900 border border-green-900 rounded px-1">{p.market_category}</span>
+          )}
+        </div>
         {p.market_group && p.market_group !== p.market_question && (
           <div className="text-green-800 text-xs italic">{p.market_group.slice(0, 45)}</div>
         )}
