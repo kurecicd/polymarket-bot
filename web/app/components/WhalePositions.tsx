@@ -99,7 +99,6 @@ function ByMarketTable({ markets }: { markets: WhaleLiveMarket[] }) {
             <th className="text-right pb-1">WHALES</th>
             <th className="text-right pb-1">TOTAL $</th>
             <th className="text-right pb-1">PRICE</th>
-            <th className="text-right pb-1">OPENED</th>
             <th className="text-right pb-1">CLOSES</th>
             <th className="text-right pb-1">CONSENSUS</th>
           </tr>
@@ -133,7 +132,6 @@ function ByMarketTable({ markets }: { markets: WhaleLiveMarket[] }) {
                   </td>
                   <td className="text-right text-green-400">{val}</td>
                   <td className="text-right text-green-600">{m.avg_price > 0 ? m.avg_price.toFixed(2) : "—"}</td>
-                  <td className="text-right text-green-800">{m.first_whale_opened ? m.first_whale_opened.slice(5) : "—"}</td>
                   <td className="text-right"><DaysStr d={m.days_left} /></td>
                   <td className="text-right pl-2">
                     {m.consensus
@@ -220,7 +218,6 @@ function ByWhaleTable({ whales }: { whales: WhalePortfolio[] }) {
                               <th className="text-right pb-0.5">PRICE</th>
                               <th className="text-right pb-0.5">SHARES</th>
                               <th className="text-right pb-0.5">VALUE</th>
-                              <th className="text-right pb-0.5">OPENED</th>
                               <th className="text-right pb-0.5">CLOSES</th>
                               <th className="text-right pb-0.5">CONSENSUS</th>
                             </tr>
@@ -246,7 +243,6 @@ function ByWhaleTable({ whales }: { whales: WhalePortfolio[] }) {
                                     <td className="text-right text-green-600">{p.price > 0 ? p.price.toFixed(2) : "—"}</td>
                                     <td className="text-right text-green-700">{p.size > 0 ? p.size.toFixed(0) : "—"}</td>
                                     <td className="text-right text-green-400">{p.value > 0 ? `$${p.value.toFixed(0)}` : "—"}</td>
-                                    <td className="text-right text-green-800">{p.opened_at ? p.opened_at.slice(5) : "—"}</td>
                                     <td className="text-right"><DaysStr d={p.days_left} /></td>
                                     <td className="text-right pl-1">
                                       {p.consensus

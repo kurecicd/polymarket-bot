@@ -18,6 +18,10 @@ _CACHE_TTL = 300  # 5-minute cache — 40 parallel HTTP calls
 _slug_cache: dict = {"data": {}, "ts": 0}  # condition_id → slug, 1-hour TTL
 _SLUG_TTL = 3600
 
+# Consensus results survive positions cache refreshes — keyed by "conditionId|outcome"
+_consensus_store: dict[str, dict] = {}
+_CONSENSUS_MAX_AGE = 3600  # re-run consensus after 1 hour
+
 
 @router.get("")
 def get_whales():
@@ -208,11 +212,12 @@ def get_whale_live_positions():
                 continue
             value = float(pos.get("currentValue") or pos.get("value") or 0)
             price = float(pos.get("pricePerShare") or pos.get("price") or 0)
+            if price == 0 and size > 0 and value > 0:
+                price = round(value / size, 4)  # derive from value/shares
             title = pos.get("title") or pos.get("question") or ""
             outcome = (pos.get("outcome") or "YES").upper()
             end_date = pos.get("endDate") or pos.get("end_date_iso") or ""
             asset = pos.get("asset") or pos.get("token_id") or ""
-            opened_at = _parse_opened_at(pos)
 
             # Skip resolved positions: value=0 AND already past end date
             dl = _days_left(end_date)
@@ -244,7 +249,6 @@ def get_whale_live_positions():
                     "value": round(value, 2),
                     "size": round(size, 2),
                     "price": round(price, 4),
-                    "opened_at": opened_at,
                 })
 
     # Get slugs (cached, non-blocking — returns empty dict on first call, fills in after)
@@ -259,9 +263,7 @@ def get_whale_live_positions():
         prices = [w["price"] for w in m["whales"] if w["price"] > 0]
         avg_price = round(sum(prices) / len(prices), 4) if prices else 0.0
         slug = slug_map.get(m["condition_id"].lower(), "")
-        # Earliest date any whale opened this position
-        dates = [w["opened_at"] for w in m["whales"] if w.get("opened_at")]
-        earliest_opened = min(dates) if dates else None
+        store_key = f"{m['condition_id']}|{m['outcome']}"
         market_list.append({
             "condition_id": m["condition_id"],
             "token_id": m["token_id"],
@@ -273,9 +275,8 @@ def get_whale_live_positions():
             "avg_price": avg_price,
             "end_date": m["end_date"],
             "days_left": _days_left(m["end_date"]),
-            "first_whale_opened": earliest_opened,
             "whales": sorted(m["whales"], key=lambda x: -x["value"])[:5],
-            "consensus": None,  # filled in by scanner
+            "consensus": _consensus_store.get(store_key),  # persistent across cache refreshes
         })
 
     market_list.sort(key=lambda x: (-x["whale_count"], -x["total_whale_value"]))
@@ -291,14 +292,18 @@ def get_whale_live_positions():
                 continue
             value = float(pos.get("currentValue") or pos.get("value") or 0)
             price = float(pos.get("pricePerShare") or pos.get("price") or 0)
+            if price == 0 and size > 0 and value > 0:
+                price = round(value / size, 4)
             end_date = pos.get("endDate") or pos.get("end_date_iso") or ""
             dl = _days_left(end_date)
             if value == 0 and (dl is None or dl <= 0):
                 continue
             cid = pos.get("conditionId") or pos.get("condition_id") or ""
+            outcome = (pos.get("outcome") or "YES").upper()
+            store_key = f"{cid}|{outcome}"
             whale_positions.append({
                 "title": pos.get("title") or pos.get("question") or "",
-                "outcome": (pos.get("outcome") or "YES").upper(),
+                "outcome": outcome,
                 "price": round(price, 4),
                 "size": round(size, 2),
                 "value": round(value, 2),
@@ -306,8 +311,7 @@ def get_whale_live_positions():
                 "days_left": dl,
                 "condition_id": cid,
                 "slug": slug_map.get(cid.lower(), ""),
-                "opened_at": _parse_opened_at(pos),
-                "consensus": None,  # filled in by scanner
+                "consensus": _consensus_store.get(store_key),
             })
         whale_positions.sort(key=lambda x: -(x["value"] or 0))
         if whale_positions:
@@ -364,11 +368,26 @@ def analyze_whale_positions(execute: bool = False):
     results = []
     MIN_WHALES_TO_TRADE = 3
 
-    for market in markets[:15]:
+    # Sort by total value descending, only analyze top 10 — 95 markets × 3 agents is too expensive
+    markets_to_analyze = sorted(markets, key=lambda x: -x["total_whale_value"])[:10]
+
+    for market in markets_to_analyze:
         cid = market["condition_id"]
         title = market["title"]
         outcome = market["outcome"]
         whale_count = market["whale_count"]
+        store_key = f"{cid}|{outcome}"
+
+        # Skip if analyzed recently (within _CONSENSUS_MAX_AGE)
+        existing = _consensus_store.get(store_key)
+        if existing:
+            try:
+                age = time.time() - datetime.fromisoformat(existing["time"].replace("Z", "+00:00")).timestamp()
+                if age < _CONSENSUS_MAX_AGE:
+                    results.append({"market": title[:60], "status": "already_analyzed", "outcome": outcome})
+                    continue
+            except Exception:
+                pass
 
         already_in = any(
             p.get("condition_id") == cid and p.get("status") == "open"
@@ -512,23 +531,13 @@ def analyze_whale_positions(execute: bool = False):
 
         results.append(entry)
 
-        # Store consensus directly in cache — no event log matching needed
-        cached_data = _positions_cache.get("data") or {}
-        consensus_payload = {
+        # Persist consensus in _consensus_store — survives positions cache refreshes
+        _consensus_store[store_key] = {
             "time": common.iso_now(),
             "approved": approved,
             "buy_count": consensus_result.buy_count,
             "votes": vote_details,
         }
-        for cm in cached_data.get("by_market", []):
-            if cm["condition_id"] == cid and cm["outcome"] == outcome:
-                cm["consensus"] = consensus_payload
-                break
-        # Also fill consensus into per-whale positions for the same market
-        for wh in cached_data.get("by_whale", []):
-            for wp in wh.get("positions", []):
-                if wp.get("condition_id") == cid:
-                    wp["consensus"] = consensus_payload
 
     common.log_event("position_scanner", common.new_run_id("ps"),
                      "scan_complete", markets_analyzed=len(results), execute=execute)

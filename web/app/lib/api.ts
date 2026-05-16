@@ -91,7 +91,6 @@ export interface WhaleLiveMarket {
   total_whale_value: number;
   avg_price: number;
   days_left: number | null;
-  first_whale_opened: string | null;
   whales: { address: string; value: number; size: number; price: number; opened_at?: string }[];
   consensus: {
     time: string;
@@ -110,7 +109,6 @@ export interface WhalePortfolioPosition {
   days_left: number | null;
   condition_id: string;
   slug: string;
-  opened_at: string | null;
   consensus: WhaleLiveMarket["consensus"];
 }
 
