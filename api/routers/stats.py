@@ -99,3 +99,57 @@ def get_stats():
         "balance_usdc": round(balance_usdc, 2),
         "invested_usdc": round(invested_usdc, 2),
     }
+
+
+def _classify_market(title: str) -> str:
+    t = title.lower()
+    if any(k in t for k in ["bitcoin", "btc", "eth", "crypto", "solana", "doge", "xrp", "coinbase", "binance", "token", "blockchain"]):
+        return "Crypto"
+    if any(k in t for k in ["trump", "biden", "harris", "president", "election", "democrat", "republican", "senate", "congress", "vote", "political", "fed ", "federal reserve", "tariff", "nato"]):
+        return "Politics"
+    if any(k in t for k in ["nba", "nfl", "mlb", "nhl", "soccer", "football", "basketball", "baseball", "tennis", "golf", "ufc", "mma", "world cup", "champion", "playoff", "super bowl", "fifa"]):
+        return "Sports"
+    if any(k in t for k in ["ai ", "openai", "gpt", "llm", "anthropic", "google", "apple", "microsoft", "meta ", "nvidia", "tech", "startup"]):
+        return "Tech"
+    if any(k in t for k in ["oil", "gold", "inflation", "gdp", "recession", "rate", "economy", "market cap", "s&p", "nasdaq", "dow"]):
+        return "Economy"
+    return "Other"
+
+
+@router.get("/heatmap")
+def get_heatmap():
+    """Category heat map: top markets by volume grouped by category."""
+    import requests as _req
+    from collections import defaultdict
+
+    try:
+        r = _req.get("https://gamma-api.polymarket.com/events",
+                     params={"limit": 200, "active": "true", "closed": "false",
+                             "order": "volume", "ascending": "false"}, timeout=10)
+        events = r.json()
+    except Exception:
+        return []
+
+    cats: dict[str, dict] = defaultdict(lambda: {"volume": 0.0, "liquidity": 0.0, "count": 0, "markets": []})
+
+    for e in events:
+        title = e.get("title") or ""
+        vol = float(e.get("volume") or 0)
+        liq = float(e.get("liquidity") or 0)
+        cat = _classify_market(title)
+        cats[cat]["volume"] += vol
+        cats[cat]["liquidity"] += liq
+        cats[cat]["count"] += 1
+        cats[cat]["markets"].append({"title": title[:60], "volume": round(vol), "liquidity": round(liq)})
+
+    result = []
+    for cat, data in sorted(cats.items(), key=lambda x: -x[1]["volume"]):
+        top3 = sorted(data["markets"], key=lambda x: -x["volume"])[:3]
+        result.append({
+            "category": cat,
+            "volume": round(data["volume"]),
+            "liquidity": round(data["liquidity"]),
+            "market_count": data["count"],
+            "top_markets": top3,
+        })
+    return result
