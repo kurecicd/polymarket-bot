@@ -123,10 +123,17 @@ def get_heatmap():
     from collections import defaultdict
 
     try:
-        r = _req.get("https://gamma-api.polymarket.com/events",
-                     params={"limit": 200, "active": "true", "closed": "false",
-                             "order": "volume", "ascending": "false"}, timeout=10)
-        events = r.json()
+        events = []
+        for offset in range(0, 1000, 100):
+            r = _req.get("https://gamma-api.polymarket.com/events",
+                         params={"limit": 100, "active": "true", "closed": "false",
+                                 "order": "volume", "ascending": "false", "offset": offset}, timeout=10)
+            page = r.json()
+            if not page:
+                break
+            events.extend(page)
+            if len(page) < 100:
+                break
     except Exception:
         return []
 
