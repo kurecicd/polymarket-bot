@@ -85,7 +85,7 @@ function ConsensusDetail({ c, onClose }: {
 function ByMarketTable({ markets }: { markets: WhaleLiveMarket[] }) {
   const [expanded, setExpanded] = useState<string | null>(null);
   if (markets.length === 0) {
-    return <p className="text-green-800 text-xs py-2 text-center">No markets with ≥2 whales found.</p>;
+    return <p className="text-green-800 text-xs py-2 text-center">No active whale positions found. Positions refresh every 5 min.</p>;
   }
   const maxW = Math.max(...markets.map(m => m.whale_count));
   return (
@@ -151,7 +151,9 @@ function ByMarketTable({ markets }: { markets: WhaleLiveMarket[] }) {
 }
 
 function ByWhaleTable({ whales }: { whales: WhalePortfolio[] }) {
-  const [expanded, setExpanded] = useState<string | null>(null);
+  const [expandedWhale, setExpandedWhale] = useState<string | null>(null);
+  const [expandedConsensus, setExpandedConsensus] = useState<string | null>(null);
+
   if (whales.length === 0) {
     return <p className="text-green-900 text-xs py-2 text-center">No active positions found across tracked whales.</p>;
   }
@@ -162,21 +164,23 @@ function ByWhaleTable({ whales }: { whales: WhalePortfolio[] }) {
           <tr className="text-green-700">
             <th className="text-left pb-1">WHALE</th>
             <th className="text-right pb-1">ROI</th>
-            <th className="text-right pb-1">POSITIONS</th>
-            <th className="text-left pb-1 pl-3">CURRENT BETS (click to expand)</th>
+            <th className="text-right pb-1">OPEN</th>
+            <th className="text-right pb-1">TOTAL $</th>
+            <th className="text-left pb-1 pl-3">TOP POSITION (click to expand)</th>
           </tr>
         </thead>
         <tbody>
           {whales.map((w) => {
-            const isOpen = expanded === w.address;
+            const whaleOpen = expandedWhale === w.address;
             const roiColor = w.roi_pct > 200 ? "text-green-300" : w.roi_pct > 50 ? "text-green-400" : "text-green-600";
-            const totalVal = w.total_value ?? w.positions.reduce((s, p) => s + p.value, 0);
+            const totalVal = w.total_value ?? 0;
+            const valStr = totalVal >= 1000 ? `$${(totalVal/1000).toFixed(1)}k` : `$${totalVal.toFixed(0)}`;
             const topPos = w.positions[0];
             return (
               <>
                 <tr key={w.address}
                   className="border-t border-green-950 hover:bg-green-950/20 cursor-pointer"
-                  onClick={() => setExpanded(isOpen ? null : w.address)}
+                  onClick={() => { setExpandedWhale(whaleOpen ? null : w.address); setExpandedConsensus(null); }}
                 >
                   <td className="py-0.5">
                     <a href={`https://polymarket.com/profile/${w.address}`} target="_blank" rel="noopener noreferrer"
@@ -186,17 +190,22 @@ function ByWhaleTable({ whales }: { whales: WhalePortfolio[] }) {
                     </a>
                   </td>
                   <td className={`text-right ${roiColor}`}>{w.roi_pct > 0 ? `${w.roi_pct.toFixed(0)}%` : "—"}</td>
-                  <td className="text-right text-green-400">{w.position_count} · ${totalVal >= 1000 ? `${(totalVal/1000).toFixed(1)}k` : totalVal.toFixed(0)}</td>
+                  <td className="text-right text-green-400">{w.position_count}</td>
+                  <td className="text-right text-green-300">{valStr}</td>
                   <td className="pl-3 text-green-700">
-                    {isOpen ? "▲ collapse" : topPos
-                      ? <span><span className={topPos.outcome === "YES" ? "text-green-500" : "text-yellow-500"}>{topPos.outcome}</span> {topPos.title.slice(0, 45)}{topPos.title.length > 45 ? "…" : ""} <span className="text-green-900">▼ {w.position_count} total</span></span>
+                    {whaleOpen ? "▲ collapse" : topPos
+                      ? <span>
+                          <span className={topPos.outcome === "YES" ? "text-green-500" : "text-yellow-500"}>{topPos.outcome}</span>
+                          {" "}{topPos.title.slice(0, 42)}{topPos.title.length > 42 ? "…" : ""}
+                          {" "}<span className="text-green-900">▼ {w.position_count} total</span>
+                        </span>
                       : "—"
                     }
                   </td>
                 </tr>
-                {isOpen && (
+                {whaleOpen && (
                   <tr key={w.address + "_detail"}>
-                    <td colSpan={4} className="pb-2 px-2">
+                    <td colSpan={5} className="pb-2 px-2">
                       <div className="border border-green-900 rounded p-1.5 bg-green-950/30">
                         <table className="w-full text-xs">
                           <thead>
@@ -204,6 +213,7 @@ function ByWhaleTable({ whales }: { whales: WhalePortfolio[] }) {
                               <th className="text-left pb-0.5">MARKET</th>
                               <th className="text-right pb-0.5">OUT</th>
                               <th className="text-right pb-0.5">PRICE</th>
+                              <th className="text-right pb-0.5">SHARES</th>
                               <th className="text-right pb-0.5">VALUE</th>
                               <th className="text-right pb-0.5">CLOSES</th>
                               <th className="text-right pb-0.5">CONSENSUS</th>
@@ -212,7 +222,7 @@ function ByWhaleTable({ whales }: { whales: WhalePortfolio[] }) {
                           <tbody>
                             {w.positions.map((p, j) => {
                               const posKey = `${w.address}_${j}`;
-                              const isOpen = expanded === posKey;
+                              const consOpen = expandedConsensus === posKey;
                               return (
                                 <>
                                   <tr key={j} className="border-t border-green-950">
@@ -220,23 +230,24 @@ function ByWhaleTable({ whales }: { whales: WhalePortfolio[] }) {
                                       <a href={`https://polymarket.com/market/${p.condition_id}`}
                                         target="_blank" rel="noopener noreferrer"
                                         className="text-green-600 hover:text-green-400" title={p.title}>
-                                        {p.title.length > 52 ? p.title.slice(0, 52) + "…" : p.title}
+                                        {p.title.length > 50 ? p.title.slice(0, 50) + "…" : p.title}
                                       </a>
                                     </td>
                                     <td className={`text-right font-bold ${p.outcome === "YES" ? "text-green-500" : "text-yellow-500"}`}>{p.outcome}</td>
                                     <td className="text-right text-green-600">{p.price > 0 ? p.price.toFixed(2) : "—"}</td>
+                                    <td className="text-right text-green-700">{p.size > 0 ? p.size.toFixed(0) : "—"}</td>
                                     <td className="text-right text-green-400">{p.value > 0 ? `$${p.value.toFixed(0)}` : "—"}</td>
                                     <td className="text-right"><DaysStr d={p.days_left} /></td>
                                     <td className="text-right pl-1">
                                       {p.consensus
-                                        ? <ConsensusBadge c={p.consensus} isOpen={isOpen}
-                                            onClick={() => setExpanded(isOpen ? null : posKey)} />
+                                        ? <ConsensusBadge c={p.consensus} isOpen={consOpen}
+                                            onClick={() => setExpandedConsensus(consOpen ? null : posKey)} />
                                         : <span className="text-green-900">—</span>
                                       }
                                     </td>
                                   </tr>
-                                  {isOpen && p.consensus && (
-                                    <ConsensusDetail c={p.consensus} onClose={() => setExpanded(null)} />
+                                  {consOpen && p.consensus && (
+                                    <ConsensusDetail c={p.consensus} onClose={() => setExpandedConsensus(null)} />
                                   )}
                                 </>
                               );

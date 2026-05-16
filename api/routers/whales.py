@@ -182,7 +182,7 @@ def get_whale_live_positions():
     market_list = []
     for m in by_market.values():
         whale_count = len(m["whales"])
-        if whale_count < 2:
+        if whale_count < 1:
             continue
         prices = [w["price"] for w in m["whales"] if w["price"] > 0]
         avg_price = round(sum(prices) / len(prices), 4) if prices else 0.0
