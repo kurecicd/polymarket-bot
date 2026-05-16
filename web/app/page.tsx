@@ -51,7 +51,7 @@ export default async function Dashboard() {
       {stats && <StatsBar stats={stats} />}
 
       {/* Heat map */}
-      <HeatMap data={heatmap} />
+      <HeatMap data={heatmap} positions={positions.open} />
 
       {/* Positions */}
       <div className="mt-4">
