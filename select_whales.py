@@ -38,21 +38,40 @@ def main(top_n: int | None = None) -> None:
         log.error(f"Missing {RANKINGS_PATH} — run rank_wallets.py first.")
         sys.exit(1)
 
+    import requests as _req
+
+    def _pusd_balance(address: str) -> float:
+        PUSD = "0xC011a7E12a19f7B1f670d46F03B03f3342E82DFB"
+        data = "0x70a08231000000000000000000000000" + address.lower().removeprefix("0x")
+        try:
+            r = _req.post("https://polygon-bor-rpc.publicnode.com", json={
+                "jsonrpc": "2.0", "method": "eth_call",
+                "params": [{"to": PUSD, "data": data}, "latest"], "id": 1,
+            }, timeout=5)
+            return int(r.json().get("result", "0x0"), 16) / 1e6
+        except Exception:
+            return 0.0
+
     df = pd.read_parquet(RANKINGS_PATH)
     log.info(f"Loaded {len(df):,} ranked wallets")
 
     top = df.head(top_n)
 
     whale_list = []
-    for _, row in top.iterrows():
+    for i, (_, row) in enumerate(top.iterrows()):
+        addr = row["maker_address"]
+        balance = _pusd_balance(addr)
+        if i % 10 == 0:
+            log.info(f"Fetching balances... {i}/{len(top)}")
         whale_list.append({
-            "address": row["maker_address"],
+            "address": addr,
             "win_rate": float(row["win_rate"]),
             "total_profit_usdc": float(row["total_profit_usdc"]),
             "avg_position_size_usdc": float(row["avg_position_size_usdc"]),
             "total_trades": int(row["total_trades"]),
             "resolved_trades": int(row["resolved_trades"]),
             "roi_pct": float(row["roi_pct"]),
+            "balance_usdc": balance,
             "selected_at": common.iso_now(),
         })
 

@@ -13,7 +13,8 @@ export default function WhaleTable({ whales }: { whales: Whale[] }) {
               <th className="text-left pb-1">#</th>
               <th className="text-left pb-1">WALLET</th>
               <th className="text-right pb-1">TRADES</th>
-              <th className="text-right pb-1">AVG SIZE</th>
+              <th className="text-right pb-1">AVG</th>
+              <th className="text-right pb-1">BALANCE</th>
             </tr>
           </thead>
           <tbody>
@@ -21,18 +22,18 @@ export default function WhaleTable({ whales }: { whales: Whale[] }) {
               const trades = w.total_trades ?? 0;
               const avgSize = w.avg_position_size_usdc ?? 0;
               const sizeStr = avgSize >= 10000 ? `$${(avgSize/1000).toFixed(0)}k` : `$${avgSize.toFixed(0)}`;
+              const bal = w.balance_usdc ?? 0;
+              const balStr = bal >= 1000000 ? `$${(bal/1000000).toFixed(1)}M` : bal >= 1000 ? `$${(bal/1000).toFixed(0)}k` : bal > 0 ? `$${bal.toFixed(0)}` : "—";
+              const balColor = bal >= 10000 ? "text-green-300" : bal >= 1000 ? "text-green-500" : "text-green-800";
               return (
                 <tr key={w.address} className="border-t border-green-950">
                   <td className="py-0.5 text-green-800 pr-1">{i + 1}</td>
                   <td className="py-0.5 text-green-600">
                     {w.address.slice(0, 6)}…{w.address.slice(-4)}
                   </td>
-                  <td className="text-right text-green-400">
-                    {trades.toLocaleString()}
-                  </td>
-                  <td className="text-right text-green-300">
-                    {sizeStr}
-                  </td>
+                  <td className="text-right text-green-400">{trades.toLocaleString()}</td>
+                  <td className="text-right text-green-500">{sizeStr}</td>
+                  <td className={`text-right ${balColor}`}>{balStr}</td>
                 </tr>
               );
             })}
