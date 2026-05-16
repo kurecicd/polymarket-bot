@@ -34,34 +34,49 @@ DUNE_API = "https://api.dune.com/api/v1"
 RANKINGS_PATH = common.DATA_DIR / "wallet_rankings.parquet"
 
 WALLET_RANKING_SQL = """
-WITH recent_buys AS (
+WITH buys AS (
     SELECT
-        maker AS wallet_address,
-        COUNT(*) AS trade_count,
-        SUM(CAST(makerAmountFilled AS DOUBLE) / 1e6) AS volume_usdc,
-        AVG(CAST(makerAmountFilled AS DOUBLE) / 1e6) AS avg_size_usdc
+        maker AS wallet,
+        COUNT(*) AS buy_count,
+        SUM(CAST(makerAmountFilled AS DOUBLE) / 1e6) AS usdc_spent,
+        AVG(CAST(makerAmountFilled AS DOUBLE) / 1e6) AS avg_buy_size
     FROM polymarket_polygon.ctfexchange_evt_orderfilled
     WHERE CAST(makerAssetId AS VARCHAR) = '0'
-      AND evt_block_time > CURRENT_TIMESTAMP - INTERVAL '30' DAY
+      AND evt_block_time > CURRENT_TIMESTAMP - INTERVAL '90' DAY
     GROUP BY maker
     HAVING COUNT(*) >= 10
        AND SUM(CAST(makerAmountFilled AS DOUBLE) / 1e6) >= 1000
        AND AVG(CAST(makerAmountFilled AS DOUBLE) / 1e6) >= 200
+),
+sells AS (
+    SELECT
+        maker AS wallet,
+        COUNT(*) AS sell_count,
+        SUM(CAST(takerAmountFilled AS DOUBLE) / 1e6) AS usdc_received
+    FROM polymarket_polygon.ctfexchange_evt_orderfilled
+    WHERE CAST(takerAssetId AS VARCHAR) = '0'
+      AND evt_block_time > CURRENT_TIMESTAMP - INTERVAL '90' DAY
+    GROUP BY maker
 )
 SELECT
-    wallet_address AS maker_address,
-    trade_count AS total_trades,
-    ROUND(volume_usdc, 2) AS total_usdc_in,
-    0.0 AS total_usdc_out,
-    0.0 AS total_profit_usdc,
-    0.0 AS roi_pct,
-    ROUND(avg_size_usdc, 2) AS avg_position_size_usdc,
+    b.wallet AS maker_address,
+    b.buy_count AS total_trades,
+    ROUND(b.usdc_spent, 2) AS total_usdc_in,
+    ROUND(COALESCE(s.usdc_received, 0), 2) AS total_usdc_out,
+    ROUND(COALESCE(s.usdc_received, 0) - b.usdc_spent, 2) AS total_profit_usdc,
+    ROUND(
+        (COALESCE(s.usdc_received, 0) - b.usdc_spent)
+        / NULLIF(b.usdc_spent, 0) * 100,
+        2
+    ) AS roi_pct,
+    ROUND(b.avg_buy_size, 2) AS avg_position_size_usdc,
     0.0 AS win_rate,
     0 AS resolved_trades,
     0 AS wins,
     0 AS losses
-FROM recent_buys
-ORDER BY volume_usdc DESC
+FROM buys b
+LEFT JOIN sells s ON b.wallet = s.wallet
+ORDER BY COALESCE(s.usdc_received, 0) - b.usdc_spent DESC
 LIMIT {limit}
 """
 
