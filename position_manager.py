@@ -250,11 +250,23 @@ def run(execute: bool = False) -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--execute", action="store_true", help="Place real sell orders. Default: dry-run.")
+    parser.add_argument("--execute", action="store_true")
+    parser.add_argument("--force-close", metavar="POSITION_ID", help="Force close a specific position immediately")
     args = parser.parse_args()
     try:
-        run(execute=args.execute)
+        if args.force_close:
+            client = _build_client()
+            state = common.load_execution_state()
+            position = state.get("active_positions", {}).get(args.force_close)
+            if not position:
+                log.error(f"Position {args.force_close} not found")
+                sys.exit(1)
+            _close_position(client, position, "manual_close", args.execute)
+            state["active_positions"][args.force_close] = position
+            common.save_execution_state(state)
+            log.info(f"Force closed {args.force_close}")
+        else:
+            run(execute=args.execute)
     except Exception as exc:
         log.error(f"Position manager failed: {exc}")
-        common.log_event("position_manager", common.new_run_id("pm"), "failed", error=str(exc))
         sys.exit(1)
