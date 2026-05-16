@@ -263,9 +263,9 @@ def run(execute: bool = False) -> None:
 
         size_usdc = round(usdc_balance * QUICK_BET_SIZE_PCT, 2)
         size_shares = round(size_usdc / opp["current_price"], 4)
-        # Enforce Polymarket minimum of 5 shares
-        if size_shares < 5.0:
-            size_shares = 5.0
+        # Enforce Polymarket minimum of 5 shares (use 5.1 to avoid float rounding below 5)
+        if size_shares < 5.1:
+            size_shares = 5.1
             size_usdc = round(size_shares * opp["current_price"], 2)
         profit_target = round(min(opp["current_price"] * 1.20, 0.97), 4)
         position_id = f"qb-{opp['token_id'][:12]}-{int(common.time.time())}"
