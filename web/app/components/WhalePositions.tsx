@@ -98,7 +98,8 @@ function ByMarketTable({ markets }: { markets: WhaleLiveMarket[] }) {
             <th className="text-right pb-1">OUT</th>
             <th className="text-right pb-1">WHALES</th>
             <th className="text-right pb-1">TOTAL $</th>
-            <th className="text-right pb-1">AVG PRICE</th>
+            <th className="text-right pb-1">PRICE</th>
+            <th className="text-right pb-1">OPENED</th>
             <th className="text-right pb-1">CLOSES</th>
             <th className="text-right pb-1">CONSENSUS</th>
           </tr>
@@ -111,15 +112,18 @@ function ByMarketTable({ markets }: { markets: WhaleLiveMarket[] }) {
             const val = m.total_whale_value >= 10000
               ? `$${(m.total_whale_value / 1000).toFixed(0)}k`
               : `$${m.total_whale_value.toFixed(0)}`;
+            const marketUrl = m.slug
+              ? `https://polymarket.com/event/${m.slug}`
+              : `https://polymarket.com/search?q=${encodeURIComponent(m.title)}`;
             const isOpen = expanded === m.condition_id + m.outcome;
             return (
               <>
                 <tr key={m.condition_id + m.outcome} className="border-t border-green-950 hover:bg-green-950/20">
                   <td className="py-0.5 text-green-800 pr-1">{i + 1}</td>
                   <td className="py-0.5 pr-2">
-                    <a href={`https://polymarket.com/market/${m.condition_id}`} target="_blank" rel="noopener noreferrer"
+                    <a href={marketUrl} target="_blank" rel="noopener noreferrer"
                       className="text-green-500 hover:text-green-300" title={m.title}>
-                      {m.title.length > 58 ? m.title.slice(0, 58) + "…" : m.title}
+                      {m.title.length > 52 ? m.title.slice(0, 52) + "…" : m.title}
                     </a>
                   </td>
                   <td className={`text-right font-bold ${outColor}`}>{m.outcome}</td>
@@ -128,7 +132,8 @@ function ByMarketTable({ markets }: { markets: WhaleLiveMarket[] }) {
                     <WhalBar count={m.whale_count} max={maxW} />
                   </td>
                   <td className="text-right text-green-400">{val}</td>
-                  <td className="text-right text-green-600">{m.avg_price.toFixed(2)}</td>
+                  <td className="text-right text-green-600">{m.avg_price > 0 ? m.avg_price.toFixed(2) : "—"}</td>
+                  <td className="text-right text-green-800">{m.first_whale_opened ? m.first_whale_opened.slice(5) : "—"}</td>
                   <td className="text-right"><DaysStr d={m.days_left} /></td>
                   <td className="text-right pl-2">
                     {m.consensus
@@ -215,6 +220,7 @@ function ByWhaleTable({ whales }: { whales: WhalePortfolio[] }) {
                               <th className="text-right pb-0.5">PRICE</th>
                               <th className="text-right pb-0.5">SHARES</th>
                               <th className="text-right pb-0.5">VALUE</th>
+                              <th className="text-right pb-0.5">OPENED</th>
                               <th className="text-right pb-0.5">CLOSES</th>
                               <th className="text-right pb-0.5">CONSENSUS</th>
                             </tr>
@@ -223,20 +229,24 @@ function ByWhaleTable({ whales }: { whales: WhalePortfolio[] }) {
                             {w.positions.map((p, j) => {
                               const posKey = `${w.address}_${j}`;
                               const consOpen = expandedConsensus === posKey;
+                              const posUrl = p.slug
+                                ? `https://polymarket.com/event/${p.slug}`
+                                : `https://polymarket.com/search?q=${encodeURIComponent(p.title)}`;
                               return (
                                 <>
                                   <tr key={j} className="border-t border-green-950">
                                     <td className="py-0.5 pr-2">
-                                      <a href={`https://polymarket.com/market/${p.condition_id}`}
+                                      <a href={posUrl}
                                         target="_blank" rel="noopener noreferrer"
                                         className="text-green-600 hover:text-green-400" title={p.title}>
-                                        {p.title.length > 50 ? p.title.slice(0, 50) + "…" : p.title}
+                                        {p.title.length > 48 ? p.title.slice(0, 48) + "…" : p.title}
                                       </a>
                                     </td>
                                     <td className={`text-right font-bold ${p.outcome === "YES" ? "text-green-500" : "text-yellow-500"}`}>{p.outcome}</td>
                                     <td className="text-right text-green-600">{p.price > 0 ? p.price.toFixed(2) : "—"}</td>
                                     <td className="text-right text-green-700">{p.size > 0 ? p.size.toFixed(0) : "—"}</td>
                                     <td className="text-right text-green-400">{p.value > 0 ? `$${p.value.toFixed(0)}` : "—"}</td>
+                                    <td className="text-right text-green-800">{p.opened_at ? p.opened_at.slice(5) : "—"}</td>
                                     <td className="text-right"><DaysStr d={p.days_left} /></td>
                                     <td className="text-right pl-1">
                                       {p.consensus

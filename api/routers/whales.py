@@ -46,6 +46,51 @@ def _fetch_positions(address: str) -> list[dict]:
         return []
 
 
+def _fetch_slugs(condition_ids: list[str]) -> dict[str, str]:
+    """Batch-fetch event slugs from Gamma API. Returns {conditionId: slug}."""
+    if not condition_ids:
+        return {}
+    slugs: dict[str, str] = {}
+    # Gamma handles up to ~50 condition_ids per call
+    for i in range(0, len(condition_ids), 40):
+        batch = condition_ids[i:i + 40]
+        try:
+            r = _req.get(
+                "https://gamma-api.polymarket.com/markets",
+                params={"condition_ids": ",".join(batch)},
+                timeout=10,
+            )
+            for m in (r.json() if isinstance(r.json(), list) else []):
+                cid = m.get("conditionId") or m.get("condition_id") or ""
+                slug = m.get("slug") or m.get("marketSlug") or ""
+                if cid and slug:
+                    slugs[cid] = slug
+        except Exception:
+            pass
+    return slugs
+
+
+def _parse_opened_at(pos: dict) -> str | None:
+    """Extract when the whale opened this position from data-api fields."""
+    raw = (
+        pos.get("startDate")
+        or pos.get("openedAt")
+        or pos.get("createdAt")
+        or pos.get("initialTimestamp")
+        or pos.get("fpmmOpenedAt")
+    )
+    if not raw:
+        return None
+    try:
+        if isinstance(raw, (int, float)):
+            ts = raw if raw < 1e12 else raw / 1000
+            return datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y-%m-%d")
+        # ISO string
+        return str(raw)[:10]
+    except Exception:
+        return None
+
+
 def _days_left(end_date: str) -> float | None:
     if not end_date:
         return None
@@ -146,6 +191,7 @@ def get_whale_live_positions():
             outcome = (pos.get("outcome") or "YES").upper()
             end_date = pos.get("endDate") or pos.get("end_date_iso") or ""
             asset = pos.get("asset") or pos.get("token_id") or ""
+            opened_at = _parse_opened_at(pos)
 
             # Skip resolved positions: value=0 AND already past end date
             dl = _days_left(end_date)
@@ -177,7 +223,12 @@ def get_whale_live_positions():
                     "value": round(value, 2),
                     "size": round(size, 2),
                     "price": round(price, 4),
+                    "opened_at": opened_at,
                 })
+
+    # Fetch slugs for all condition_ids in one batch (correct Polymarket URLs)
+    all_cids = list({m["condition_id"] for m in by_market.values()})
+    slug_map = _fetch_slugs(all_cids)
 
     market_list = []
     for m in by_market.values():
@@ -186,18 +237,24 @@ def get_whale_live_positions():
             continue
         prices = [w["price"] for w in m["whales"] if w["price"] > 0]
         avg_price = round(sum(prices) / len(prices), 4) if prices else 0.0
+        slug = slug_map.get(m["condition_id"], "")
+        # Earliest date any whale opened this position
+        dates = [w["opened_at"] for w in m["whales"] if w.get("opened_at")]
+        earliest_opened = min(dates) if dates else None
         market_list.append({
             "condition_id": m["condition_id"],
             "token_id": m["token_id"],
             "title": m["title"],
             "outcome": m["outcome"],
+            "slug": slug,
             "whale_count": whale_count,
             "total_whale_value": m["total_value"],
             "avg_price": avg_price,
             "end_date": m["end_date"],
             "days_left": _days_left(m["end_date"]),
+            "first_whale_opened": earliest_opened,
             "whales": sorted(m["whales"], key=lambda x: -x["value"])[:5],
-            "consensus": None,  # filled in by scanner; no event-log matching
+            "consensus": None,  # filled in by scanner
         })
 
     market_list.sort(key=lambda x: (-x["whale_count"], -x["total_whale_value"]))
@@ -215,7 +272,6 @@ def get_whale_live_positions():
             price = float(pos.get("pricePerShare") or pos.get("price") or 0)
             end_date = pos.get("endDate") or pos.get("end_date_iso") or ""
             dl = _days_left(end_date)
-            # Skip resolved/expired zero-value positions
             if value == 0 and (dl is None or dl <= 0):
                 continue
             cid = pos.get("conditionId") or pos.get("condition_id") or ""
@@ -228,6 +284,8 @@ def get_whale_live_positions():
                 "end_date": end_date,
                 "days_left": dl,
                 "condition_id": cid,
+                "slug": slug_map.get(cid, ""),
+                "opened_at": _parse_opened_at(pos),
                 "consensus": None,  # filled in by scanner
             })
         whale_positions.sort(key=lambda x: -(x["value"] or 0))
