@@ -184,10 +184,14 @@ def find_opportunities(client: PolymarketClient) -> list[dict]:
             current_price = no_price
             side = "BUY"
 
+        events = market.get("events") or []
+        market_group = events[0].get("title", "") if events else ""
+
         opportunities.append({
             "condition_id": condition_id,
             "token_id": token_id,
             "market_question": market.get("question") or market.get("title") or "",
+            "market_group": market_group,
             "current_price": round(current_price, 4),
             "fair_value": round(fair_value, 4),
             "edge": round(edge, 4),
@@ -279,6 +283,7 @@ def run(execute: bool = False) -> None:
             "token_id": opp["token_id"],
             "condition_id": opp["condition_id"],
             "market_question": opp["market_question"],
+            "market_group": opp.get("market_group", ""),
             "whale_address": "quick_bet_strategy",
             "whale_win_rate": 0.0,
             "whale_entry_size_shares": 0.0,

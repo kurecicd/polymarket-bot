@@ -32,8 +32,16 @@ export default function WhaleTable({ whales }: { whales: Whale[] }) {
               return (
                 <tr key={w.address} className="border-t border-green-950">
                   <td className="py-0.5 text-green-800 pr-1">{i + 1}</td>
-                  <td className="py-0.5 text-green-600">
-                    {w.address.slice(0, 6)}…{w.address.slice(-4)}
+                  <td className="py-0.5">
+                    <a
+                      href={`https://polymarket.com/profile/${w.address}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-green-600 hover:text-green-400"
+                      title={w.address}
+                    >
+                      {w.address.slice(0, 6)}…{w.address.slice(-4)}
+                    </a>
                   </td>
                   <td className={`text-right ${roiColor}`}>{roiStr}</td>
                   <td className="text-right text-green-400">{trades.toLocaleString()}</td>

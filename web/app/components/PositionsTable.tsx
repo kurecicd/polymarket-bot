@@ -87,6 +87,9 @@ function PositionRow({ position: p, isOpen }: { position: Position; isOpen: bool
             </a>
           )}
         </div>
+        {p.market_group && p.market_group !== p.market_question && (
+          <div className="text-green-800 text-xs italic">{p.market_group.slice(0, 50)}</div>
+        )}
         <div className="text-green-400 text-xs">{p.market_question?.slice(0, 50)}{(p.market_question?.length ?? 0) > 50 ? "…" : ""}</div>
         {p.end_date_iso && (
           <div className="text-green-800 text-xs">closes {new Date(p.end_date_iso).toLocaleDateString("sv-SE", { timeZone: "Europe/Stockholm" })}</div>

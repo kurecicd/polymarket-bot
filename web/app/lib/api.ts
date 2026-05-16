@@ -92,6 +92,7 @@ export async function triggerAction(action: string, execute = false) {
 export interface Position {
   position_id: string;
   market_question: string;
+  market_group?: string;
   token_id: string;
   whale_address: string;
   entry_price: number;
@@ -105,6 +106,7 @@ export interface Position {
   exit_price?: number;
   realized_pnl?: number;
   strategy?: string;
+  outcome?: string;
 }
 
 export interface Whale {
