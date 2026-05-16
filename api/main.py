@@ -75,24 +75,22 @@ def _run_whale_refresh():
 
 def _run_whale_position_scanner():
     """
-    Every 10 minutes: look at what all 40 tracked whales are currently holding.
-    If ≥3 whales hold the same market+outcome and we don't already have a position,
-    run 3-agent consensus and place a trade if approved.
-    Complements the 60s monitor (which catches new entries); this catches markets
-    whales entered before we started watching them.
+    Every 10 minutes: scan what all 40 tracked whales currently hold.
+    Runs 3-agent consensus on every market where ≥2 whales are on the same side —
+    results are stored in event_log and shown in the dashboard panel automatically.
+    If bot is in execute mode AND ≥3 whales agree on a side → also places a trade.
+    Runs regardless of execution mode so consensus is always visible in the panel.
     """
     common.load_env()
     state = common.load_execution_state()
-    if state.get("execution_mode") != "execute":
-        return
+    execute = state.get("execution_mode") == "execute"
     try:
         from api.routers.whales import analyze_whale_positions
-        result = analyze_whale_positions(execute=True)
+        result = analyze_whale_positions(execute=execute)
         traded = sum(1 for r in result.get("results", []) if r.get("traded"))
         analyzed = len(result.get("results", []))
-        if analyzed > 0:
-            common.log_event("position_scanner", common.new_run_id("ps"),
-                             "scan_complete", analyzed=analyzed, traded=traded)
+        common.log_event("position_scanner", common.new_run_id("ps"),
+                         "scan_complete", analyzed=analyzed, traded=traded, execute=execute)
     except Exception as e:
         common.log_event("position_scanner", common.new_run_id("ps"), "scan_failed", error=str(e)[:200])
 

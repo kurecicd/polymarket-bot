@@ -272,18 +272,13 @@ def analyze_whale_positions(execute: bool = False):
     active = execution_state.get("active_positions", {})
     results = []
 
-    MIN_WHALES_TO_TRADE = 3  # only enter markets where ≥3 tracked whales hold the same side
+    MIN_WHALES_TO_TRADE = 3  # place a real trade only when ≥3 whales agree on same side
+    # Consensus always runs for ≥2 whales (so results show in dashboard panel)
 
-    for market in markets[:10]:  # check top 10 by whale count
+    for market in markets[:15]:  # check top 15 by whale count
         cid = market["condition_id"]
         title = market["title"]
         outcome = market["outcome"]
-
-        # Require ≥3 whales on the same side — 2 is noise, 3 is a signal
-        if market["whale_count"] < MIN_WHALES_TO_TRADE:
-            results.append({"market": title[:60], "status": "filtered",
-                            "reason": f"only {market['whale_count']}/3 whales required"})
-            continue
 
         # Skip if already holding this exact market+outcome
         already_in = any(
@@ -392,7 +387,7 @@ def analyze_whale_positions(execute: bool = False):
             "votes": vote_details,
         }
 
-        if approved and execute:
+        if approved and execute and market["whale_count"] >= MIN_WHALES_TO_TRADE:
             try:
                 import time as _t
                 usdc_balance = common.get_capital(client)

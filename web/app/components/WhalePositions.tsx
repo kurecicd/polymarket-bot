@@ -81,47 +81,6 @@ function ConsensusDetail({ c, onClose }: {
   );
 }
 
-function DryRunButton() {
-  const [loading, setLoading] = useState(false);
-  const [summary, setSummary] = useState("");
-
-  async function run() {
-    setLoading(true);
-    setSummary("");
-    try {
-      const res = await fetch("/api/proxy/whales/live-positions/analyze?execute=false", { method: "POST" });
-      const data = await res.json();
-      const results: { status: string }[] = data.results || [];
-      const approved = results.filter(r => r.status === "approved").length;
-      const rejected = results.filter(r => r.status === "rejected").length;
-      const filtered = results.filter(r => r.status === "filtered" || r.status === "already_holding").length;
-      const parts = [`${results.length} checked`];
-      if (approved) parts.push(`${approved} would trade`);
-      if (rejected) parts.push(`${rejected} rejected`);
-      if (filtered) parts.push(`${filtered} skipped`);
-      setSummary(parts.join(" · "));
-      setTimeout(() => setSummary(""), 12000);
-    } catch {
-      setSummary("error");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  return (
-    <div className="inline-flex items-center gap-2">
-      <button
-        onClick={run}
-        disabled={loading}
-        className="border border-green-800 rounded px-2 py-0.5 text-xs text-green-700 hover:text-green-500 disabled:opacity-40"
-        title="Dry-run: see what the auto-scanner would do right now (no orders placed)"
-      >
-        {loading ? "CHECKING…" : "DRY RUN"}
-      </button>
-      {summary && <span className="text-green-600 text-xs">{summary}</span>}
-    </div>
-  );
-}
 
 function ByMarketTable({ markets }: { markets: WhaleLiveMarket[] }) {
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -300,7 +259,7 @@ export default function WhalePositions({ data }: { data: { by_market: WhaleLiveM
             BY WHALE ({whales.length} active)
           </button>
         </div>
-        <DryRunButton />
+        <span className="text-green-900 text-xs">auto-scan every 10 min</span>
       </div>
 
       {tab === "market"
@@ -309,7 +268,7 @@ export default function WhalePositions({ data }: { data: { by_market: WhaleLiveM
       }
 
       <p className="text-green-900 text-xs mt-1">
-        Stats only · auto-scans every 10 min in execute mode (≥3 whales → consensus → trade) · DRY RUN shows what it would do now
+        Refreshes every 5 min · consensus runs automatically every 10 min · click ✓/✗ badge to see agent reasoning · ≥3 whales + approved → auto-trade
       </p>
     </div>
   );
