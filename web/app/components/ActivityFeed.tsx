@@ -37,7 +37,7 @@ export default function ActivityFeed({ events }: { events: ActivityEvent[] }) {
         {events.length === 0 && (
           <p className="text-green-800 py-2 text-center">Waiting for activity…</p>
         )}
-        {[...events].reverse().map((e, i) => {
+        {events.map((e, i) => {
           const meta = EVENT_LABELS[e.event] ?? { label: e.event.toUpperCase(), color: "text-green-700" };
           const time = toCest(e.time ?? "");
           const d = e.details as Record<string, unknown>;
