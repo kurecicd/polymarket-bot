@@ -262,6 +262,13 @@ if __name__ == "__main__":
                 log.error(f"Position {args.force_close} not found")
                 sys.exit(1)
             _close_position(client, position, "manual_close", args.execute)
+            # If sell failed (no tokens), force-mark as closed anyway
+            if position.get("status") != "closed":
+                log.warning("Sell order failed or no tokens — marking position as abandoned")
+                position["status"] = "closed"
+                position["closed_at"] = common.iso_now()
+                position["close_reason"] = "abandoned_no_tokens"
+                position["realized_pnl"] = 0.0
             state["active_positions"][args.force_close] = position
             common.save_execution_state(state)
             log.info(f"Force closed {args.force_close}")
