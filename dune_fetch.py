@@ -76,7 +76,7 @@ SELECT
     0 AS losses
 FROM buys b
 LEFT JOIN sells s ON b.wallet = s.wallet
-ORDER BY COALESCE(s.usdc_received, 0) - b.usdc_spent DESC
+ORDER BY roi_pct DESC NULLS LAST
 LIMIT {limit}
 """
 

@@ -27,7 +27,7 @@ export default function WhaleTable({ whales }: { whales: Whale[] }) {
               const balStr = bal >= 1000000 ? `$${(bal/1000000).toFixed(1)}M` : bal >= 1000 ? `$${(bal/1000).toFixed(0)}k` : bal > 0 ? `$${bal.toFixed(0)}` : "—";
               const balColor = bal >= 10000 ? "text-green-300" : bal >= 1000 ? "text-green-500" : "text-green-800";
               const roi = w.roi_pct ?? 0;
-              const roiStr = roi === 0 ? "—" : roi >= 1000 ? `${(roi/1000).toFixed(1)}kx` : `${roi.toFixed(0)}%`;
+              const roiStr = roi === 0 ? "—" : `${roi.toFixed(0)}%`;
               const roiColor = roi > 100 ? "text-green-300" : roi > 0 ? "text-green-500" : "text-green-800";
               return (
                 <tr key={w.address} className="border-t border-green-950">
