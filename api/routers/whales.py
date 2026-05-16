@@ -147,6 +147,11 @@ def get_whale_live_positions():
             end_date = pos.get("endDate") or pos.get("end_date_iso") or ""
             asset = pos.get("asset") or pos.get("token_id") or ""
 
+            # Skip resolved positions: value=0 AND already past end date
+            dl = _days_left(end_date)
+            if value == 0 and (dl is None or dl <= 0):
+                continue
+
             key = f"{cid}|{outcome}"
             if key not in by_market:
                 by_market[key] = {
@@ -174,8 +179,6 @@ def get_whale_live_positions():
                     "price": round(price, 4),
                 })
 
-    consensus_events = _load_consensus_events()
-
     market_list = []
     for m in by_market.values():
         whale_count = len(m["whales"])
@@ -194,12 +197,12 @@ def get_whale_live_positions():
             "end_date": m["end_date"],
             "days_left": _days_left(m["end_date"]),
             "whales": sorted(m["whales"], key=lambda x: -x["value"])[:5],
-            "consensus": _match_consensus(m["title"], consensus_events),
+            "consensus": None,  # filled in by scanner; no event-log matching
         })
 
     market_list.sort(key=lambda x: (-x["whale_count"], -x["total_whale_value"]))
 
-    # ── per_whale portfolio ──
+    # ── per_whale portfolio (only non-resolved positions) ──
     whale_list = []
     for address, positions in raw.items():
         meta = whale_meta.get(address, {})
@@ -211,6 +214,11 @@ def get_whale_live_positions():
             value = float(pos.get("currentValue") or pos.get("value") or 0)
             price = float(pos.get("pricePerShare") or pos.get("price") or 0)
             end_date = pos.get("endDate") or pos.get("end_date_iso") or ""
+            dl = _days_left(end_date)
+            # Skip resolved/expired zero-value positions
+            if value == 0 and (dl is None or dl <= 0):
+                continue
+            cid = pos.get("conditionId") or pos.get("condition_id") or ""
             whale_positions.append({
                 "title": pos.get("title") or pos.get("question") or "",
                 "outcome": (pos.get("outcome") or "YES").upper(),
@@ -218,20 +226,22 @@ def get_whale_live_positions():
                 "size": round(size, 2),
                 "value": round(value, 2),
                 "end_date": end_date,
-                "days_left": _days_left(end_date),
-                "condition_id": pos.get("conditionId") or pos.get("condition_id") or "",
+                "days_left": dl,
+                "condition_id": cid,
+                "consensus": None,  # filled in by scanner
             })
-        whale_positions.sort(key=lambda x: -x["value"])
-        if whale_positions:  # only include whales that hold something
+        whale_positions.sort(key=lambda x: -(x["value"] or 0))
+        if whale_positions:
             whale_list.append({
                 "address": address,
                 "roi_pct": meta.get("roi_pct", 0),
                 "total_profit_usdc": meta.get("total_profit_usdc", 0),
                 "position_count": len(whale_positions),
+                "total_value": round(sum(p["value"] for p in whale_positions), 2),
                 "positions": whale_positions,
             })
 
-    whale_list.sort(key=lambda x: (-x["roi_pct"], -x["position_count"]))
+    whale_list.sort(key=lambda x: (-x["total_value"], -x["roi_pct"]))
 
     result = {"by_market": market_list, "by_whale": whale_list}
     _positions_cache["data"] = result
@@ -423,9 +433,24 @@ def analyze_whale_positions(execute: bool = False):
 
         results.append(entry)
 
-    # Bust cache so next GET shows fresh consensus data
-    _positions_cache["ts"] = 0
+        # Store consensus directly in cache — no event log matching needed
+        cached_data = _positions_cache.get("data") or {}
+        consensus_payload = {
+            "time": common.iso_now(),
+            "approved": approved,
+            "buy_count": consensus_result.buy_count,
+            "votes": vote_details,
+        }
+        for cm in cached_data.get("by_market", []):
+            if cm["condition_id"] == cid and cm["outcome"] == outcome:
+                cm["consensus"] = consensus_payload
+                break
+        # Also fill consensus into per-whale positions for the same market
+        for wh in cached_data.get("by_whale", []):
+            for wp in wh.get("positions", []):
+                if wp.get("condition_id") == cid:
+                    wp["consensus"] = consensus_payload
 
-    common.log_event("dashboard", "ANALYZE_WHALE_POSITIONS", "button_press",
-                     execute=execute, markets_analyzed=len(results))
+    common.log_event("position_scanner", common.new_run_id("ps"),
+                     "scan_complete", markets_analyzed=len(results), execute=execute)
     return {"results": results, "execute": execute}

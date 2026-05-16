@@ -170,7 +170,7 @@ function ByWhaleTable({ whales }: { whales: WhalePortfolio[] }) {
           {whales.map((w) => {
             const isOpen = expanded === w.address;
             const roiColor = w.roi_pct > 200 ? "text-green-300" : w.roi_pct > 50 ? "text-green-400" : "text-green-600";
-            const totalVal = w.positions.reduce((s, p) => s + p.value, 0);
+            const totalVal = w.total_value ?? w.positions.reduce((s, p) => s + p.value, 0);
             const topPos = w.positions[0];
             return (
               <>
@@ -206,24 +206,41 @@ function ByWhaleTable({ whales }: { whales: WhalePortfolio[] }) {
                               <th className="text-right pb-0.5">PRICE</th>
                               <th className="text-right pb-0.5">VALUE</th>
                               <th className="text-right pb-0.5">CLOSES</th>
+                              <th className="text-right pb-0.5">CONSENSUS</th>
                             </tr>
                           </thead>
                           <tbody>
-                            {w.positions.map((p, j) => (
-                              <tr key={j} className="border-t border-green-950">
-                                <td className="py-0.5 pr-2">
-                                  <a href={`https://polymarket.com/market/${p.condition_id}`}
-                                    target="_blank" rel="noopener noreferrer"
-                                    className="text-green-600 hover:text-green-400" title={p.title}>
-                                    {p.title.length > 55 ? p.title.slice(0, 55) + "…" : p.title}
-                                  </a>
-                                </td>
-                                <td className={`text-right font-bold ${p.outcome === "YES" ? "text-green-500" : "text-yellow-500"}`}>{p.outcome}</td>
-                                <td className="text-right text-green-600">{p.price.toFixed(2)}</td>
-                                <td className="text-right text-green-400">${p.value.toFixed(0)}</td>
-                                <td className="text-right"><DaysStr d={p.days_left} /></td>
-                              </tr>
-                            ))}
+                            {w.positions.map((p, j) => {
+                              const posKey = `${w.address}_${j}`;
+                              const isOpen = expanded === posKey;
+                              return (
+                                <>
+                                  <tr key={j} className="border-t border-green-950">
+                                    <td className="py-0.5 pr-2">
+                                      <a href={`https://polymarket.com/market/${p.condition_id}`}
+                                        target="_blank" rel="noopener noreferrer"
+                                        className="text-green-600 hover:text-green-400" title={p.title}>
+                                        {p.title.length > 52 ? p.title.slice(0, 52) + "…" : p.title}
+                                      </a>
+                                    </td>
+                                    <td className={`text-right font-bold ${p.outcome === "YES" ? "text-green-500" : "text-yellow-500"}`}>{p.outcome}</td>
+                                    <td className="text-right text-green-600">{p.price > 0 ? p.price.toFixed(2) : "—"}</td>
+                                    <td className="text-right text-green-400">{p.value > 0 ? `$${p.value.toFixed(0)}` : "—"}</td>
+                                    <td className="text-right"><DaysStr d={p.days_left} /></td>
+                                    <td className="text-right pl-1">
+                                      {p.consensus
+                                        ? <ConsensusBadge c={p.consensus} isOpen={isOpen}
+                                            onClick={() => setExpanded(isOpen ? null : posKey)} />
+                                        : <span className="text-green-900">—</span>
+                                      }
+                                    </td>
+                                  </tr>
+                                  {isOpen && p.consensus && (
+                                    <ConsensusDetail c={p.consensus} onClose={() => setExpanded(null)} />
+                                  )}
+                                </>
+                              );
+                            })}
                           </tbody>
                         </table>
                       </div>

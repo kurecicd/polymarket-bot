@@ -107,6 +107,7 @@ export interface WhalePortfolioPosition {
   value: number;
   days_left: number | null;
   condition_id: string;
+  consensus: WhaleLiveMarket["consensus"];
 }
 
 export interface WhalePortfolio {
@@ -114,6 +115,7 @@ export interface WhalePortfolio {
   roi_pct: number;
   total_profit_usdc: number;
   position_count: number;
+  total_value: number;
   positions: WhalePortfolioPosition[];
 }
 
