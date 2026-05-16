@@ -73,7 +73,20 @@ function PositionRow({ position: p, isOpen }: { position: Position; isOpen: bool
   return (
     <tr className={`border-t border-green-950 ${closed ? "opacity-40" : ""}`}>
       <td className="py-1 max-w-[200px]">
-        <div className="text-green-700 text-xs">{strategy} {p.strategy !== "quick_bet" && p.whale_address ? `${p.whale_address.slice(0, 8)}…` : ""}</div>
+        <div className="text-green-700 text-xs flex items-center gap-1">
+          <span>{strategy}</span>
+          {p.strategy !== "quick_bet" && p.whale_address && (
+            <a
+              href={`https://polymarket.com/profile/${p.whale_address}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-cyan-600 hover:text-cyan-400 underline"
+              title={p.whale_address}
+            >
+              👤 {p.whale_address.slice(0, 6)}…{p.whale_address.slice(-4)}
+            </a>
+          )}
+        </div>
         <div className="text-green-400 text-xs">{p.market_question?.slice(0, 50)}{(p.market_question?.length ?? 0) > 50 ? "…" : ""}</div>
         {p.end_date_iso && (
           <div className="text-green-800 text-xs">closes {new Date(p.end_date_iso).toLocaleDateString("sv-SE", { timeZone: "Europe/Stockholm" })}</div>
