@@ -17,7 +17,8 @@ export default function PositionsTable({ open, closed }: { open: Position[]; clo
         <table className="w-full text-xs">
           <thead>
             <tr className="text-green-700">
-              <th className="text-left pb-1">MARKET</th>
+              <th className="text-left pb-1">STRATEGY / MARKET</th>
+              <th className="text-left pb-1">WHALE</th>
               <th className="text-right pb-1">SIDE</th>
               <th className="text-right pb-1">ENTRY</th>
               <th className="text-right pb-1">TARGET</th>
@@ -36,7 +37,7 @@ export default function PositionsTable({ open, closed }: { open: Position[]; clo
             ))}
             {open.length === 0 && closed.length === 0 && (
               <tr>
-                <td colSpan={8} className="text-green-800 py-4 text-center">No positions yet</td>
+                <td colSpan={9} className="text-green-800 py-4 text-center">No positions yet</td>
               </tr>
             )}
           </tbody>
@@ -72,27 +73,29 @@ function PositionRow({ position: p, isOpen }: { position: Position; isOpen: bool
 
   return (
     <tr className={`border-t border-green-950 ${closed ? "opacity-40" : ""}`}>
-      <td className="py-1 max-w-[200px]">
-        <div className="text-green-700 text-xs flex items-center gap-1">
-          <span>{strategy}</span>
-          {p.strategy !== "quick_bet" && p.whale_address && (
-            <a
-              href={`https://polymarket.com/profile/${p.whale_address}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-cyan-600 hover:text-cyan-400 underline"
-              title={p.whale_address}
-            >
-              👤 {p.whale_address.slice(0, 6)}…{p.whale_address.slice(-4)}
-            </a>
-          )}
-        </div>
+      <td className="py-1 max-w-[220px]">
+        <div className="text-green-700 text-xs">{strategy}</div>
         {p.market_group && p.market_group !== p.market_question && (
-          <div className="text-green-800 text-xs italic">{p.market_group.slice(0, 50)}</div>
+          <div className="text-green-800 text-xs italic">{p.market_group.slice(0, 45)}</div>
         )}
         <div className="text-green-400 text-xs">{p.market_question?.slice(0, 50)}{(p.market_question?.length ?? 0) > 50 ? "…" : ""}</div>
         {p.end_date_iso && (
           <div className="text-green-800 text-xs">closes {new Date(p.end_date_iso).toLocaleDateString("sv-SE", { timeZone: "Europe/Stockholm" })}</div>
+        )}
+      </td>
+      <td className="py-1 text-left">
+        {p.strategy !== "quick_bet" && p.whale_address && p.whale_address !== "quick_bet_strategy" ? (
+          <a
+            href={`https://polymarket.com/profile/${p.whale_address}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-cyan-600 hover:text-cyan-400 underline text-xs"
+            title={p.whale_address}
+          >
+            {p.whale_address.slice(0, 6)}…{p.whale_address.slice(-4)}
+          </a>
+        ) : (
+          <span className="text-green-900 text-xs">—</span>
         )}
       </td>
       <td className="text-right align-top py-1">{outcomeBadge}</td>
