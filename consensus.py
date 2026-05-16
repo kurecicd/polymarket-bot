@@ -83,9 +83,9 @@ MARKET LIQUIDITY: ${float(signal.get("market_liquidity", 0)):,.0f}
 HOURS UNTIL RESOLUTION: {signal.get("hours_left", "?")}
 
 WHALE STATS:
-- Win rate: {whale.get("win_rate", 0):.1%}
-- Total profit: ${whale.get("total_profit_usdc", 0):,.0f}
-- Total trades: {whale.get("total_trades", 0)}
+- ROI (90-day): {whale.get("roi_pct", 0):.0f}%
+- Total profit (90-day): ${whale.get("total_profit_usdc", 0):,.0f}
+- Total trades (90-day): {whale.get("total_trades", 0)}
 - Avg position size: ${whale.get("avg_position_size_usdc", 0):,.0f}
 - This trade size: ${float(signal.get("size", 0)) * float(signal.get("price", 0)):,.0f} USDC
 """.strip()

@@ -94,7 +94,7 @@ def main(top_n: int | None = None) -> None:
             log.info(f"Fetching data... {i}/{len(top)}")
         whale_list.append({
             "address": addr,
-            "win_rate": float(row["win_rate"]),
+            "win_rate": None,  # not derivable from CTF exchange events; use roi_pct instead
             "total_profit_usdc": float(row["total_profit_usdc"]),
             "avg_position_size_usdc": float(row["avg_position_size_usdc"]),
             "total_trades": int(row["total_trades"]),

@@ -32,7 +32,7 @@ MIN_LIQUIDITY = float(os.getenv("POLYMARKET_MIN_LIQUIDITY", "10000"))
 HOURS_BEFORE_CLOSE = float(os.getenv("POLYMARKET_HOURS_BEFORE_CLOSE", "72"))
 HOURS_MAX_TO_CLOSE = float(os.getenv("POLYMARKET_HOURS_MAX_TO_CLOSE", "1080"))  # 45 days
 POSITION_PCT = float(os.getenv("POLYMARKET_POSITION_PCT", "0.02"))
-PROFIT_TARGET_PCT = float(os.getenv("POLYMARKET_PROFIT_TARGET_PCT", "0.25"))
+PROFIT_TARGET_PCT = float(os.getenv("POLYMARKET_PROFIT_TARGET_PCT", "0.20"))
 KEEP_LAST_SEEN = 200  # max trade IDs to remember per whale
 
 logging.basicConfig(
@@ -64,13 +64,32 @@ def _build_client() -> PolymarketClient:
     return client
 
 
+MAX_TRADE_AGE_SECONDS = 3600  # ignore trades older than 1 hour (prevents first-run flooding)
+
+
 def _poll_whale(
     client: PolymarketClient,
     address: str,
     known_ids: set[str],
 ) -> list[dict]:
     trades = client.get_trades(maker_address=address, limit=20)
-    return [t for t in trades if t.get("id") not in known_ids]
+    now_ts = int(time.time())
+    fresh = []
+    for t in trades:
+        if t.get("id") in known_ids:
+            continue
+        ts = t.get("timestamp", "0")
+        try:
+            trade_ts = int(ts)
+            # data-api returns seconds; if value looks like milliseconds (>1e12), convert
+            if trade_ts > 1_000_000_000_000:
+                trade_ts = trade_ts // 1000
+            if now_ts - trade_ts > MAX_TRADE_AGE_SECONDS:
+                continue
+        except (ValueError, TypeError):
+            pass  # if timestamp is unparseable, include the trade
+        fresh.append(t)
+    return fresh
 
 
 def _is_tradeable(
@@ -210,9 +229,9 @@ def _execute_copy_trade(
             )
             position_record["order_id"] = order_resp.get("orderID") or order_resp.get("order_id")
             log.info(f"Order placed: {position_record['order_id']}")
-        except RuntimeError as exc:
+        except Exception as exc:
             log.error(f"Order failed: {exc}")
-            common.log_event("monitor", common.new_run_id("monitor"), "order_failed", error=str(exc), signal=signal)
+            common.log_event("monitor", common.new_run_id("monitor"), "order_failed", error=str(exc)[:200], signal=signal)
             return
 
     execution_state["active_positions"][position_id] = position_record
@@ -286,7 +305,8 @@ def run(execute: bool = False) -> None:
                 # Run 3-agent AI consensus before placing any trade
                 if USE_CONSENSUS and common.has_real_value(os.getenv("ANTHROPIC_API_KEY", "")):
                     try:
-                        result = run_consensus(signal, whale)
+                        signal_with_meta = {**signal, "hours_left": PolymarketClient.hours_until_end(signal["end_date_iso"])}
+                        result = run_consensus(signal_with_meta, whale)
                         log.info(f"Consensus: {result.summary}")
                         if not result.approved:
                             log.info(f"Consensus REJECTED — skipping trade")

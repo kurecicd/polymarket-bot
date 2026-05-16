@@ -25,7 +25,7 @@ import common
 from notify import send_trade_closed
 from polymarket_client import PolymarketClient
 
-PROFIT_TARGET_PCT = float(os.getenv("POLYMARKET_PROFIT_TARGET_PCT", "0.25"))
+PROFIT_TARGET_PCT = float(os.getenv("POLYMARKET_PROFIT_TARGET_PCT", "0.20"))
 WHALE_SHRINK_THRESH = float(os.getenv("POLYMARKET_WHALE_SHRINK_THRESH", "0.30"))
 HOURS_BEFORE_CLOSE = float(os.getenv("POLYMARKET_HOURS_BEFORE_CLOSE", "72"))
 

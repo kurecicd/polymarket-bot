@@ -143,20 +143,9 @@ def find_opportunities(client: PolymarketClient) -> list[dict]:
             continue  # Skip near-certain outcomes — too little upside
 
         # Skip neg-risk markets — require different order type
-        try:
-            import requests as _req
-            for _tid in [yes_token_id] + ([no_token_id] if no_token_id else []):
-                nr = _req.get(
-                    "https://clob.polymarket.com/neg-risk",
-                    params={"token_id": _tid}, timeout=4
-                ).json()
-                log.debug(f"neg-risk {_tid[:12]}: {nr}")
-                if nr.get("neg_risk") or nr.get("negRisk"):
-                    raise StopIteration
-        except StopIteration:
+        # Use Gamma API's negRisk field first (no extra HTTP call); fall back to CLOB check
+        if market.get("negRisk") or market.get("neg_risk"):
             continue
-        except Exception:
-            pass
 
         try:
             book = client.get_book(yes_token_id)
@@ -174,15 +163,30 @@ def find_opportunities(client: PolymarketClient) -> list[dict]:
         if edge > 0:
             # YES is underpriced → BUY YES
             token_id = yes_token_id
-            current_price = yes_price
+            target_book = book  # already fetched
+            display_price = yes_price
             side = "BUY"
+            outcome = "YES"
         else:
             # YES is overpriced → NO is underpriced → BUY NO
             if not no_token_id:
                 continue
             token_id = no_token_id
-            current_price = no_price
+            try:
+                target_book = client.get_book(no_token_id)
+            except RuntimeError:
+                continue
+            display_price = no_price
             side = "BUY"
+            outcome = "NO"
+
+        # Use live best_ask from the order book as the order price (not stale Gamma snapshot)
+        asks = target_book.get("asks") or []
+        if not asks:
+            continue
+        live_price = float(min(asks, key=lambda x: float(x.get("price", 1)))["price"])
+        if live_price <= 0 or live_price >= 1:
+            continue
 
         events = market.get("events") or []
         market_group = events[0].get("title", "") if events else ""
@@ -194,15 +198,16 @@ def find_opportunities(client: PolymarketClient) -> list[dict]:
             "market_question": market.get("question") or market.get("title") or "",
             "market_group": market_group,
             "market_category": market_category,
-            "current_price": round(current_price, 4),
+            "current_price": round(live_price, 4),   # live best_ask — used for order placement
+            "display_price": round(display_price, 4), # Gamma snapshot — for display only
             "fair_value": round(fair_value, 4),
             "edge": round(edge, 4),
             "side": side,
-            "outcome": "YES" if edge > 0 else "NO",
+            "outcome": outcome,
             "liquidity": float(market.get("liquidity") or 0),
             "end_date_iso": end_date,
             "market_liquidity": float(market.get("liquidity") or 0),
-            "price": str(current_price),
+            "price": str(live_price),
             "size": "0",
         })
 
@@ -218,9 +223,11 @@ def run(execute: bool = False) -> None:
     common.log_event("quick_bets", run_id, "start", execute=execute)
 
     execution_state = common.load_execution_state()
+    # Count only quick_bet positions opened today (not whale copy trades)
+    today = datetime.now(timezone.utc).date().isoformat()
     daily_quick = sum(
-        1 for e in execution_state.get("daily_trade_log", [])
-        if datetime.now(timezone.utc).date().isoformat() in e
+        1 for p in execution_state.get("active_positions", {}).values()
+        if p.get("strategy") == "quick_bet" and (p.get("opened_at", "") or "").startswith(today)
     )
     if daily_quick >= MAX_QUICK_BETS_PER_DAY:
         log.info(f"Quick bet daily limit reached ({MAX_QUICK_BETS_PER_DAY}). Skipping.")

@@ -70,8 +70,10 @@ SELECT
         2
     ) AS roi_pct,
     ROUND(b.avg_buy_size, 2) AS avg_position_size_usdc,
-    0.0 AS win_rate,
-    0 AS resolved_trades,
+    -- win_rate not derivable from CTF exchange events (no per-market resolution data)
+    -- use roi_pct as the quality signal instead
+    CAST(NULL AS DOUBLE) AS win_rate,
+    b.buy_count AS resolved_trades,
     0 AS wins,
     0 AS losses
 FROM buys b

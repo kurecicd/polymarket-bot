@@ -112,7 +112,7 @@ export interface Position {
 
 export interface Whale {
   address: string;
-  win_rate: number;
+  win_rate: number | null;
   total_profit_usdc: number;
   avg_position_size_usdc: number;
   total_trades: number;
