@@ -81,51 +81,52 @@ function ConsensusDetail({ c, onClose }: {
   );
 }
 
-function AnalyzeButton({ execute }: { execute: boolean }) {
-  const [state, setState] = useState<"idle" | "loading" | "done">("idle");
+function AnalyzeButtons() {
+  const [loading, setLoading] = useState<"dry" | "live" | null>(null);
   const [summary, setSummary] = useState<string>("");
 
-  async function run() {
-    setState("loading");
+  async function run(execute: boolean) {
+    const mode = execute ? "live" : "dry";
+    setLoading(mode);
     setSummary("");
     try {
       const res = await fetch(`/api/proxy/whales/live-positions/analyze?execute=${execute}`, { method: "POST" });
       const data = await res.json();
-      const results: {status: string; market: string; buy_count?: number}[] = data.results || [];
+      const results: { status: string; traded?: boolean }[] = data.results || [];
       const approved = results.filter(r => r.status === "approved").length;
       const rejected = results.filter(r => r.status === "rejected").length;
       const filtered = results.filter(r => r.status === "filtered" || r.status === "already_holding").length;
-      const traded = results.filter(r => (r as {traded?: boolean}).traded).length;
-      const parts = [`${results.length} markets analyzed`];
+      const traded = results.filter(r => r.traded).length;
+      const parts: string[] = [`${results.length} checked`];
       if (approved) parts.push(`${approved} approved`);
       if (rejected) parts.push(`${rejected} rejected`);
-      if (filtered) parts.push(`${filtered} filtered`);
-      if (traded) parts.push(`${traded} TRADED`);
+      if (filtered) parts.push(`${filtered} skipped`);
+      if (traded) parts.push(`${traded} TRADED ✓`);
       setSummary(parts.join(" · "));
-      setState("done");
       if (traded) setTimeout(() => window.location.reload(), 1500);
-      else setTimeout(() => setState("idle"), 8000);
+      else setTimeout(() => setSummary(""), 10000);
     } catch {
-      setSummary("Error — check Railway logs");
-      setState("done");
-      setTimeout(() => setState("idle"), 5000);
+      setSummary("error — check Railway logs");
+    } finally {
+      setLoading(null);
     }
   }
 
   return (
     <div className="inline-flex items-center gap-2">
       <button
-        onClick={run}
-        disabled={state === "loading"}
-        className={`border rounded px-2 py-0.5 text-xs font-bold transition-colors ${
-          state === "loading"
-            ? "border-green-800 text-green-800 cursor-wait"
-            : execute
-              ? "border-green-500 text-green-400 hover:bg-green-900/40"
-              : "border-green-700 text-green-600 hover:bg-green-950/40"
-        }`}
+        onClick={() => run(false)}
+        disabled={loading !== null}
+        className="border border-green-800 rounded px-2 py-0.5 text-xs text-green-700 hover:text-green-500 hover:border-green-700 disabled:opacity-40"
       >
-        {state === "loading" ? "ANALYZING…" : execute ? "⚡ ANALYZE + TRADE" : "ANALYZE (DRY RUN)"}
+        {loading === "dry" ? "ANALYZING…" : "ANALYZE"}
+      </button>
+      <button
+        onClick={() => run(true)}
+        disabled={loading !== null}
+        className="border border-green-600 rounded px-2 py-0.5 text-xs text-green-400 hover:bg-green-900/40 disabled:opacity-40"
+      >
+        {loading === "live" ? "PLACING…" : "ANALYZE + PLACE BETS"}
       </button>
       {summary && <span className="text-green-600 text-xs">{summary}</span>}
     </div>
@@ -291,7 +292,6 @@ function ByWhaleTable({ whales }: { whales: WhalePortfolio[] }) {
 
 export default function WhalePositions({ data }: { data: { by_market: WhaleLiveMarket[]; by_whale: WhalePortfolio[] } }) {
   const [tab, setTab] = useState<"market" | "whale">("market");
-  const [executeMode, setExecuteMode] = useState(false);
   const markets = data?.by_market ?? [];
   const whales = data?.by_whale ?? [];
 
@@ -310,14 +310,7 @@ export default function WhalePositions({ data }: { data: { by_market: WhaleLiveM
             BY WHALE ({whales.length} active)
           </button>
         </div>
-        <div className="flex items-center gap-2">
-          <label className="text-xs text-green-700 flex items-center gap-1 cursor-pointer">
-            <input type="checkbox" checked={executeMode} onChange={e => setExecuteMode(e.target.checked)}
-              className="accent-green-500" />
-            live trades
-          </label>
-          <AnalyzeButton execute={executeMode} />
-        </div>
+        <AnalyzeButtons />
       </div>
 
       {tab === "market"
