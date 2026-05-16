@@ -30,6 +30,7 @@ MIN_LIQUIDITY = float(os.getenv("POLYMARKET_MIN_LIQUIDITY", "10000"))
 MIN_EDGE_PCT = float(os.getenv("POLYMARKET_QUICK_BET_EDGE", "0.03"))   # 3% mispricing minimum
 QUICK_BET_SIZE_PCT = float(os.getenv("POLYMARKET_QUICK_BET_SIZE_PCT", "0.01"))  # 1% of balance
 HOURS_BEFORE_CLOSE = float(os.getenv("POLYMARKET_HOURS_BEFORE_CLOSE", "72"))
+HOURS_MAX_TO_CLOSE = float(os.getenv("POLYMARKET_HOURS_MAX_TO_CLOSE", "1080"))  # 45 days
 
 logging.basicConfig(
     level=logging.INFO,
@@ -107,7 +108,10 @@ def find_opportunities(client: PolymarketClient) -> list[dict]:
         end_date = market.get("endDateIso") or market.get("endDate") or ""
         if not end_date:
             continue
-        if PolymarketClient.hours_until_end(end_date) <= HOURS_BEFORE_CLOSE:
+        hours_left = PolymarketClient.hours_until_end(end_date)
+        if hours_left <= HOURS_BEFORE_CLOSE:
+            continue
+        if hours_left > HOURS_MAX_TO_CLOSE:
             continue
 
         # Extract YES/NO token IDs from clobTokenIds

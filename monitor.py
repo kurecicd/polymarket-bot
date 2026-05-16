@@ -30,6 +30,7 @@ USE_CONSENSUS = True  # overridden by --no-consensus flag
 MAX_TRADES_PER_DAY = int(os.getenv("POLYMARKET_MAX_TRADES_PER_DAY", "10"))
 MIN_LIQUIDITY = float(os.getenv("POLYMARKET_MIN_LIQUIDITY", "10000"))
 HOURS_BEFORE_CLOSE = float(os.getenv("POLYMARKET_HOURS_BEFORE_CLOSE", "72"))
+HOURS_MAX_TO_CLOSE = float(os.getenv("POLYMARKET_HOURS_MAX_TO_CLOSE", "1080"))  # 45 days
 POSITION_PCT = float(os.getenv("POLYMARKET_POSITION_PCT", "0.02"))
 PROFIT_TARGET_PCT = float(os.getenv("POLYMARKET_PROFIT_TARGET_PCT", "0.25"))
 KEEP_LAST_SEEN = 200  # max trade IDs to remember per whale
@@ -111,6 +112,9 @@ def _is_tradeable(
     hours_left = PolymarketClient.hours_until_end(end_date_iso)
     if hours_left <= HOURS_BEFORE_CLOSE:
         log.debug(f"Only {hours_left:.1f}h until close — skip")
+        return None
+    if hours_left > HOURS_MAX_TO_CLOSE:
+        log.debug(f"{hours_left:.0f}h until close — too far out (max {HOURS_MAX_TO_CLOSE:.0f}h), skip")
         return None
 
     return {

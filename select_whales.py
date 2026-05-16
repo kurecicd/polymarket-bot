@@ -29,7 +29,7 @@ log = logging.getLogger("select_whales")
 def main(top_n: int | None = None) -> None:
     common.load_env()
     if top_n is None:
-        top_n = int(os.getenv("POLYMARKET_WHALE_TOP_N", "20"))
+        top_n = int(os.getenv("POLYMARKET_WHALE_TOP_N", "40"))
 
     run_id = common.new_run_id("select-whales")
     common.log_event("select_whales", run_id, "start", top_n=top_n)
