@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -17,7 +18,7 @@ export default function LoginPage() {
     const res = await fetch("/api/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ password }),
+      body: JSON.stringify({ username, password }),
     });
 
     if (res.ok) {
@@ -37,17 +38,26 @@ export default function LoginPage() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <input
+            type="text"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            placeholder="Username"
+            autoFocus
+            autoComplete="username"
+            className="w-full bg-black border border-green-800 rounded px-3 py-2 text-green-300 placeholder-green-900 focus:outline-none focus:border-green-600"
+          />
+          <input
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Password"
-            autoFocus
+            autoComplete="current-password"
             className="w-full bg-black border border-green-800 rounded px-3 py-2 text-green-300 placeholder-green-900 focus:outline-none focus:border-green-600"
           />
           {error && <p className="text-red-500 text-xs">{error}</p>}
           <button
             type="submit"
-            disabled={loading || !password}
+            disabled={loading || !password || !username}
             className="w-full border border-green-700 py-2 rounded hover:bg-green-900/30 disabled:opacity-40 text-green-300"
           >
             {loading ? "…" : "ENTER"}

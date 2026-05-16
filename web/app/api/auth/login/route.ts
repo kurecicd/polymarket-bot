@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createHmac } from "crypto";
 
+const USERNAME = process.env.DASHBOARD_USERNAME || "admin";
 const PASSWORD = process.env.DASHBOARD_PASSWORD || "changeme";
 const SECRET = process.env.DASHBOARD_SECRET || "secret-key-change-this";
 
@@ -9,10 +10,10 @@ function sign(value: string): string {
 }
 
 export async function POST(req: NextRequest) {
-  const { password } = await req.json();
+  const { username, password } = await req.json();
 
-  if (password !== PASSWORD) {
-    return NextResponse.json({ error: "Wrong password" }, { status: 401 });
+  if (username !== USERNAME || password !== PASSWORD) {
+    return NextResponse.json({ error: "Wrong username or password" }, { status: 401 });
   }
 
   const token = sign("authenticated");
