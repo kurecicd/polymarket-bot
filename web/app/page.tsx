@@ -1,4 +1,4 @@
-import { getStats, getPositions, getWhales, getActivity, getConsensusLog, getBotStatus, getSetupStatus } from "./lib/api";
+import { getStats, getPositions, getWhales, getActivity, getConsensusLog, getBotStatus, getSetupStatus, getWhaleLivePositions } from "./lib/api";
 import LocalTime from "./components/LocalTime";
 import LiveStatus from "./components/LiveStatus";
 import SetupBanner from "./components/SetupBanner";
@@ -9,11 +9,12 @@ import ActivityFeed from "./components/ActivityFeed";
 import ConsensusLog from "./components/ConsensusLog";
 import BotControls from "./components/BotControls";
 import HeatMap from "./components/HeatMap";
+import WhalePositions from "./components/WhalePositions";
 
 export const dynamic = "force-dynamic";
 
 export default async function Dashboard() {
-  const [stats, positions, whales, activity, consensus, status, setupStatus, heatmap] = await Promise.all([
+  const [stats, positions, whales, activity, consensus, status, setupStatus, heatmap, whaleLivePositions] = await Promise.all([
     getStats().catch(() => null),
     getPositions().catch(() => ({ open: [], closed: [] })),
     getWhales().catch(() => ({ whales: [], count: 0, updated_at: "" })),
@@ -22,6 +23,7 @@ export default async function Dashboard() {
     getBotStatus().catch(() => null),
     getSetupStatus().catch(() => null),
     fetch(`${process.env.RAILWAY_API_URL || "https://polymarket-bot-production-ae2d.up.railway.app"}/api/stats/heatmap`).then(r => r.json()).catch(() => []),
+    getWhaleLivePositions().catch(() => []),
   ]);
 
   return (
@@ -52,6 +54,9 @@ export default async function Dashboard() {
 
       {/* Heat map */}
       <HeatMap data={heatmap} positions={positions.open} />
+
+      {/* Whale live positions — what markets all 40 tracked whales are currently holding */}
+      <WhalePositions data={whaleLivePositions} />
 
       {/* Positions */}
       <div className="mt-4">

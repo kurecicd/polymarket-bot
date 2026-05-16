@@ -81,6 +81,19 @@ export async function getSetupStatus() {
   }>("/api/actions/setup-status", true); // no-cache — always fresh
 }
 
+export async function getWhaleLivePositions() {
+  return apiFetch<{
+    condition_id: string;
+    title: string;
+    outcome: string;
+    whale_count: number;
+    total_whale_value: number;
+    avg_price: number;
+    days_left: number | null;
+    whales: { address: string; value: number; size: number; price: number }[];
+  }[]>("/api/whales/live-positions");
+}
+
 export async function triggerAction(action: string, execute = false) {
   // Always use proxy — this is always called from the browser
   const res = await fetch(`/api/proxy/actions/${action}?execute=${execute}`, {
