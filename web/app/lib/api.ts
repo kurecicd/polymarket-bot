@@ -81,17 +81,46 @@ export async function getSetupStatus() {
   }>("/api/actions/setup-status", true); // no-cache — always fresh
 }
 
+export interface WhaleLiveMarket {
+  condition_id: string;
+  token_id: string;
+  title: string;
+  outcome: string;
+  whale_count: number;
+  total_whale_value: number;
+  avg_price: number;
+  days_left: number | null;
+  whales: { address: string; value: number; size: number; price: number }[];
+  consensus: {
+    time: string;
+    approved: boolean;
+    buy_count: number;
+    votes: { agent: string; decision: string; confidence: number; reasoning?: string }[];
+  } | null;
+}
+
+export interface WhalePortfolioPosition {
+  title: string;
+  outcome: string;
+  price: number;
+  size: number;
+  value: number;
+  days_left: number | null;
+  condition_id: string;
+}
+
+export interface WhalePortfolio {
+  address: string;
+  roi_pct: number;
+  total_profit_usdc: number;
+  position_count: number;
+  positions: WhalePortfolioPosition[];
+}
+
 export async function getWhaleLivePositions() {
-  return apiFetch<{
-    condition_id: string;
-    title: string;
-    outcome: string;
-    whale_count: number;
-    total_whale_value: number;
-    avg_price: number;
-    days_left: number | null;
-    whales: { address: string; value: number; size: number; price: number }[];
-  }[]>("/api/whales/live-positions");
+  return apiFetch<{ by_market: WhaleLiveMarket[]; by_whale: WhalePortfolio[] }>(
+    "/api/whales/live-positions"
+  );
 }
 
 export async function triggerAction(action: string, execute = false) {

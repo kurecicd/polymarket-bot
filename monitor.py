@@ -64,32 +64,22 @@ def _build_client() -> PolymarketClient:
     return client
 
 
-MAX_TRADE_AGE_SECONDS = 3600  # ignore trades older than 1 hour (prevents first-run flooding)
-
-
 def _poll_whale(
     client: PolymarketClient,
     address: str,
     known_ids: set[str],
-) -> list[dict]:
-    trades = client.get_trades(maker_address=address, limit=20)
-    now_ts = int(time.time())
-    fresh = []
-    for t in trades:
-        if t.get("id") in known_ids:
-            continue
-        ts = t.get("timestamp", "0")
-        try:
-            trade_ts = int(ts)
-            # data-api returns seconds; if value looks like milliseconds (>1e12), convert
-            if trade_ts > 1_000_000_000_000:
-                trade_ts = trade_ts // 1000
-            if now_ts - trade_ts > MAX_TRADE_AGE_SECONDS:
-                continue
-        except (ValueError, TypeError):
-            pass  # if timestamp is unparseable, include the trade
-        fresh.append(t)
-    return fresh
+) -> tuple[list[dict], bool]:
+    """
+    Returns (trades, is_baseline_run).
+    First poll (known_ids empty): returns ALL current trades with is_baseline=True.
+      → caller seeds known_ids but does NOT copy anything. Prevents flooding on startup.
+    Subsequent polls: returns only NEW trades (not in known_ids) with is_baseline=False.
+      → no time filter; catches any trade that arrived since last poll regardless of age.
+    """
+    trades = client.get_trades(maker_address=address, limit=50)
+    if not known_ids:
+        return trades, True  # baseline: return all for seeding, don't process
+    return [t for t in trades if t.get("id") not in known_ids], False
 
 
 def _is_tradeable(
@@ -289,33 +279,39 @@ def run(execute: bool = False) -> None:
         known_ids: set[str] = set(monitor_state["last_seen_trade_ids"].get(addr, []))
 
         try:
-            new_trades = _poll_whale(client, addr, known_ids)
-        except RuntimeError as exc:
+            new_trades, is_baseline = _poll_whale(client, addr, known_ids)
+        except Exception as exc:
             log.warning(f"Failed to poll {addr[:10]}...: {exc}")
             continue
 
-        for trade in new_trades:
-            trade_id = trade.get("id", "")
-            known_ids.add(trade_id)
+        if is_baseline:
+            # First poll — seed known_ids, don't copy anything
+            for t in new_trades:
+                known_ids.add(t.get("id", ""))
+            log.info(f"Baseline set for {addr[:10]}... ({len(known_ids)} trades seeded, no copies)")
+        else:
+            for trade in new_trades:
+                trade_id = trade.get("id", "")
+                known_ids.add(trade_id)
 
-            signal = _is_tradeable(trade, client, execution_state)
-            if signal:
-                signals_found += 1
+                signal = _is_tradeable(trade, client, execution_state)
+                if signal:
+                    signals_found += 1
 
-                # Run 3-agent AI consensus before placing any trade
-                if USE_CONSENSUS and common.has_real_value(os.getenv("ANTHROPIC_API_KEY", "")):
-                    try:
-                        signal_with_meta = {**signal, "hours_left": PolymarketClient.hours_until_end(signal["end_date_iso"])}
-                        result = run_consensus(signal_with_meta, whale)
-                        log.info(f"Consensus: {result.summary}")
-                        if not result.approved:
-                            log.info(f"Consensus REJECTED — skipping trade")
-                            continue
-                    except Exception as exc:
-                        log.warning(f"Consensus check failed ({exc}) — proceeding without it")
+                    # Run 3-agent AI consensus before placing any trade
+                    if USE_CONSENSUS and common.has_real_value(os.getenv("ANTHROPIC_API_KEY", "")):
+                        try:
+                            signal_with_meta = {**signal, "hours_left": PolymarketClient.hours_until_end(signal["end_date_iso"])}
+                            result = run_consensus(signal_with_meta, whale)
+                            log.info(f"Consensus: {result.summary}")
+                            if not result.approved:
+                                log.info("Consensus REJECTED — skipping trade")
+                                continue
+                        except Exception as exc:
+                            log.warning(f"Consensus check failed ({exc}) — proceeding without it")
 
-                _execute_copy_trade(client, signal, whale, execution_state, execute)
-                trades_placed += 1
+                    _execute_copy_trade(client, signal, whale, execution_state, execute)
+                    trades_placed += 1
 
         # Keep last KEEP_LAST_SEEN IDs per whale
         monitor_state["last_seen_trade_ids"][addr] = list(known_ids)[-KEEP_LAST_SEEN:]

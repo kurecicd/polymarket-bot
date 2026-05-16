@@ -23,7 +23,7 @@ export default async function Dashboard() {
     getBotStatus().catch(() => null),
     getSetupStatus().catch(() => null),
     fetch(`${process.env.RAILWAY_API_URL || "https://polymarket-bot-production-ae2d.up.railway.app"}/api/stats/heatmap`).then(r => r.json()).catch(() => []),
-    getWhaleLivePositions().catch(() => []),
+    getWhaleLivePositions().catch(() => ({ by_market: [], by_whale: [] })),
   ]);
 
   return (
