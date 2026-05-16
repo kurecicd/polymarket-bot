@@ -135,8 +135,8 @@ def find_opportunities(client: PolymarketClient) -> list[dict]:
         else:
             yes_price, no_price = 0.5, 0.5
 
-        if yes_price <= 0.02 or yes_price >= 0.98:
-            continue  # Skip near-certain outcomes
+        if yes_price <= 0.10 or yes_price >= 0.90:
+            continue  # Skip near-certain outcomes — too little upside
 
         # Skip neg-risk markets — require different order type
         try:
